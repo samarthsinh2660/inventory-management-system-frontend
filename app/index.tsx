@@ -1,0 +1,36 @@
+import React, { useEffect } from 'react';
+import { View, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useAppSelector } from '../hooks/useAppSelector';
+import { LoadingSpinner } from '../components/LoadingSpinner';
+
+export default function Index() {
+  const router = useRouter();
+  const { token, user } = useAppSelector(state => state.auth);
+
+  useEffect(() => {
+    if (token && user) {
+      // Redirect based on user role
+      if (user.is_master) {
+        router.replace('/(master)' as any);
+      } else {
+        router.replace('/(employee)' as any);
+      }
+    } else {
+      router.replace('/login');
+    }
+  }, [token, user, router]);
+
+  return (
+    <View style={styles.container}>
+      <LoadingSpinner />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+});
