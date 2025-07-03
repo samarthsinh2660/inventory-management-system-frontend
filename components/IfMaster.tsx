@@ -9,7 +9,7 @@ interface IfMasterProps {
 export const IfMaster: React.FC<IfMasterProps> = ({ children, fallback = null }) => {
   const user = useAppSelector(state => state.auth.user);
   
-  if (!user || !user.is_master) {
+  if (!user || user.role !== 'master') {
     return <>{fallback}</>;
   }
   

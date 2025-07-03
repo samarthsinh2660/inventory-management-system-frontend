@@ -15,7 +15,7 @@ export default function AuditLogs() {
   const [refreshing, setRefreshing] = useState(false);
   const [showMyLogsOnly, setShowMyLogsOnly] = useState(false);
 
-  const isMaster = user?.is_master || false;
+  const isMaster = user?.role === 'master';
 
   // Filter logs based on user role and filter setting
   const filteredLogs = isMaster 

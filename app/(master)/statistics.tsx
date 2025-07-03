@@ -6,7 +6,7 @@ import Statistics from '../(shared)/statistics';
 export default function ProtectedStatisticsScreen() {
   const router = useRouter();
   const user = useAppSelector(state => state.auth.user);
-  const isMaster = user?.is_master || false;
+  const isMaster = user?.role === 'master';
   
   useEffect(() => {
     // If not a master user, redirect to dashboard

@@ -42,7 +42,7 @@ export default function Products() {
     formula_id: 0,
   });
 
-  const isMaster = user?.is_master || false;
+  const isMaster = user?.role === 'master';
 
   const handleSearChange = (text: string) => {
     setSearchTerm(text);

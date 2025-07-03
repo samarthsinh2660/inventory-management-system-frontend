@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import { Package, Info } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
-import { login } from '../../store/slices/authSlice';
+import { signin } from '../../store/slices/authSlice';
 import Toast from 'react-native-toast-message';
 
 const validationSchema = Yup.object({
@@ -23,9 +23,9 @@ export default function Login() {
 
   const handleLogin = async (values: { username: string; password: string }) => {
     try {
-      const result = await dispatch(login(values)).unwrap();
+      const result = await dispatch(signin(values)).unwrap();
       // Redirect based on user role
-      if (result.user.is_master) {
+      if (result.user.role === 'master') {
         router.replace('/(master)');
       } else {
         router.replace('/(employee)');
@@ -97,7 +97,7 @@ export default function Login() {
 
                 <Button
                   mode="contained"
-                  onPress={() => handleSubmit()}
+                  onPress={() => handleLogin(values)}
                   loading={loading}
                   style={styles.loginButton}
                   contentStyle={styles.buttonContent}

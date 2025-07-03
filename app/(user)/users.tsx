@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Users as UsersIcon, Plus, Trash2, Crown, User } from 'lucide-react-native';
+import { Users as UsersIcon, Plus, Trash2, Crown, User as UserIcon } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { fetchUsers, deleteUser } from '../../store/slices/usersSlice';
 import { CreateUserModal } from '../../components/modals/CreateUserModal';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import Toast from 'react-native-toast-message';
+import { User } from '../../store/slices/authSlice';
 
 export default function Users() {
   const dispatch = useAppDispatch();
@@ -68,21 +69,27 @@ export default function Users() {
     );
   };
 
-  const renderUser = ({ item }: { item: any }) => (
+  const renderUser = ({ item }: { item: User }) => (
     <View style={styles.userCard}>
       <View style={styles.userHeader}>
         <View style={styles.userIcon}>
-          {item.is_master ? (
+          {item.role === 'master' ? (
             <Crown size={20} color="#f59e0b" />
           ) : (
-            <User size={20} color="#6b7280" />
+            <UserIcon size={20} color="#6b7280" />
           )}
         </View>
         <View style={styles.userInfo}>
           <Text style={styles.username}>{item.username}</Text>
           <Text style={styles.role}>
-            {item.is_master ? 'Master User' : 'Employee'}
+            {item.role === 'master' ? 'Master User' : 'Employee'}
           </Text>
+          {item.name && (
+            <Text style={styles.name}>Name: {item.name}</Text>
+          )}
+          {item.email && (
+            <Text style={styles.email}>Email: {item.email}</Text>
+          )}
         </View>
         {item.id !== currentUser?.id && (
           <TouchableOpacity
@@ -96,7 +103,7 @@ export default function Users() {
       
       <View style={styles.userFooter}>
         <Text style={styles.createdDate}>
-          Created: {new Date(item.created_at).toLocaleDateString()}
+          {item.created_at && `Created: ${new Date(item.created_at).toLocaleDateString()}`}
         </Text>
         {item.id === currentUser?.id && (
           <Text style={styles.currentUserBadge}>You</Text>
@@ -241,6 +248,16 @@ const styles = StyleSheet.create({
     color: '#1f2937',
   },
   role: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  name: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  email: {
     fontSize: 14,
     color: '#6b7280',
     marginTop: 2,

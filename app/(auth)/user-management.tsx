@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Users as UsersIcon, Plus, Trash2, Crown, User, ArrowLeft } from 'lucide-react-native';
+import { Users as UsersIcon, Plus, Trash2, Crown, User, ArrowLeft, Edit2 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { fetchUsers, deleteUser } from '../../store/slices/usersSlice';
 import { CreateUserModal } from '../../components/modals/CreateUserModal';
+import { EditUserModal } from '../../components/modals/EditUserModal';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import Toast from 'react-native-toast-message';
+import { User as UserType } from '../../store/slices/authSlice';
 
 export default function UserManagement() {
   const router = useRouter();
@@ -17,6 +19,8 @@ export default function UserManagement() {
   const currentUser = useAppSelector(state => state.auth.user);
   const [refreshing, setRefreshing] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
@@ -70,11 +74,16 @@ export default function UserManagement() {
     );
   };
 
-  const renderUser = ({ item }: { item: any }) => (
+  const handleEditUser = (user: UserType) => {
+    setSelectedUser(user);
+    setShowEditModal(true);
+  };
+
+  const renderUser = ({ item }: { item: UserType }) => (
     <View style={styles.userCard}>
       <View style={styles.userHeader}>
         <View style={styles.userIcon}>
-          {item.is_master ? (
+          {item.role === 'master' ? (
             <Crown size={20} color="#f59e0b" />
           ) : (
             <User size={20} color="#6b7280" />
@@ -83,22 +92,35 @@ export default function UserManagement() {
         <View style={styles.userInfo}>
           <Text style={styles.username}>{item.username}</Text>
           <Text style={styles.role}>
-            {item.is_master ? 'Master User' : 'Employee'}
+            {item.role === 'master' ? 'Master User' : 'Employee'}
           </Text>
+          {item.name && (
+            <Text style={styles.name}>Name: {item.name}</Text>
+          )}
+          {item.email && (
+            <Text style={styles.email}>Email: {item.email}</Text>
+          )}
         </View>
-        {item.id !== currentUser?.id && (
+        <View style={styles.userActions}>
           <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => handleDeleteUser(item.id, item.username)}
+            style={styles.editButton}
+            onPress={() => handleEditUser(item)}
           >
-            <Trash2 size={18} color="#ef4444" />
+            <Edit2 size={18} color="#2563eb" />
           </TouchableOpacity>
-        )}
+          {item.id !== currentUser?.id && (
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => handleDeleteUser(item.id, item.username)}
+            >
+              <Trash2 size={18} color="#ef4444" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
-      
       <View style={styles.userFooter}>
         <Text style={styles.createdDate}>
-          Created: {new Date(item.created_at).toLocaleDateString()}
+          {item.created_at && `Created: ${new Date(item.created_at).toLocaleDateString()}`}
         </Text>
         {item.id === currentUser?.id && (
           <Text style={styles.currentUserBadge}>You</Text>
@@ -164,6 +186,18 @@ export default function UserManagement() {
         isVisible={showCreateModal}
         onClose={() => setShowCreateModal(false)}
       />
+      
+      {selectedUser && (
+        <EditUserModal
+          isVisible={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          user={selectedUser}
+          onSuccess={() => {
+            dispatch(fetchUsers());
+            setShowEditModal(false);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -251,6 +285,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     marginTop: 2,
+  },
+  name: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  email: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  userActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#eff6ff',
   },
   deleteButton: {
     padding: 8,

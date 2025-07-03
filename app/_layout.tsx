@@ -8,10 +8,9 @@ import { Provider as ReduxProvider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { store, persistor } from '../store';
-import { setToken } from '../store/slices/authSlice';
+import { initAuth } from '../store/slices/authSlice';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 
 const theme = {
@@ -27,19 +26,16 @@ function AppContent() {
   useFrameworkReady();
 
   useEffect(() => {
-    // Check for existing token on app start
-    const loadToken = async () => {
+    // Initialize authentication by loading tokens and user profile
+    const initialize = async () => {
       try {
-        const token = await AsyncStorage.getItem('token');
-        if (token) {
-          store.dispatch(setToken(token));
-        }
+        await store.dispatch(initAuth()).unwrap();
       } catch (error) {
-        console.error('Error loading token:', error);
+        console.error('Error initializing auth:', error);
       }
     };
     
-    loadToken();
+    initialize();
   }, []);
 
   return (

@@ -6,12 +6,12 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 
 export default function Index() {
   const router = useRouter();
-  const { token, user } = useAppSelector(state => state.auth);
+  const { accessToken, user } = useAppSelector(state => state.auth);
 
   useEffect(() => {
-    if (token && user) {
+    if (accessToken && user) {
       // Redirect based on user role
-      if (user.is_master) {
+      if (user.role === 'master') {
         router.replace('/(master)' as any);
       } else {
         router.replace('/(employee)' as any);
@@ -19,7 +19,7 @@ export default function Index() {
     } else {
       router.replace('/login');
     }
-  }, [token, user, router]);
+  }, [accessToken, user, router]);
 
   return (
     <View style={styles.container}>

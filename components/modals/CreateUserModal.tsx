@@ -6,9 +6,10 @@ import * as Yup from 'yup';
 import { TextInput, Button, Switch } from 'react-native-paper';
 import { X } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
-import { register } from '../../store/slices/authSlice';
-import { fetchUsers } from '../../store/slices/usersSlice';
+import { signup } from '../../store/slices/authSlice';
+import { createUser, fetchUsers } from '../../store/slices/usersSlice';
 import Toast from 'react-native-toast-message';
+import { useAppSelector } from '../../hooks/useAppSelector';
 
 interface CreateUserModalProps {
   isVisible: boolean;
@@ -16,9 +17,11 @@ interface CreateUserModalProps {
 }
 
 const validationSchema = Yup.object({
+  name: Yup.string().required('Name is required'),
   username: Yup.string().required('Username is required').min(3, 'Username must be at least 3 characters'),
   password: Yup.string().required('Password is required').min(6, 'Password must be at least 6 characters'),
-  is_master: Yup.boolean(),
+  email: Yup.string().email('Invalid email format'),
+  role: Yup.string().oneOf(['master', 'employee']).required('Role is required'),
 });
 
 export const CreateUserModal: React.FC<CreateUserModalProps> = ({
@@ -26,15 +29,42 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   onClose,
 }) => {
   const dispatch = useAppDispatch();
+  const { user: currentUser } = useAppSelector(state => state.auth);
 
-  const handleSubmit = async (values: { username: string; password: string; is_master: boolean }) => {
+  // Determine if this is a sign-up or user creation based on if there's a current user
+  const isUserCreation = !!currentUser;
+
+  const handleSubmit = async (values: { 
+    name: string; 
+    username: string; 
+    password: string; 
+    email?: string; 
+    role: 'master' | 'employee' 
+  }) => {
     try {
-      await dispatch(register(values)).unwrap();
-      dispatch(fetchUsers()); // Refresh users list
+      // Ensure email is always a string (empty if not provided)
+      const userData = {
+        ...values,
+        email: values.email || ''
+      };
+      
+      if (isUserCreation) {
+        // If a user is logged in, use createUser from usersSlice
+        await dispatch(createUser(userData)).unwrap();
+      } else {
+        // If no user is logged in, use signup from authSlice
+        await dispatch(signup(userData)).unwrap();
+      }
+      
+      // Refresh users list if it's user creation by an admin
+      if (isUserCreation) {
+        dispatch(fetchUsers());
+      }
+      
       Toast.show({
         type: 'success',
         text1: 'Success',
-        text2: 'User created successfully',
+        text2: isUserCreation ? 'User created successfully' : 'Account created successfully',
       });
       onClose();
     } catch (error: any) {
@@ -50,19 +80,37 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
     <Modal isVisible={isVisible} onBackdropPress={onClose}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Create User</Text>
+          <Text style={styles.title}>{isUserCreation ? 'Create User' : 'Sign Up'}</Text>
           <TouchableOpacity onPress={onClose}>
             <X size={24} color="#6b7280" />
           </TouchableOpacity>
         </View>
 
         <Formik
-          initialValues={{ username: '', password: '', is_master: false }}
+          initialValues={{ 
+            name: '', 
+            username: '', 
+            password: '', 
+            email: '', 
+            role: 'employee' 
+          }}
           validationSchema={validationSchema}
           onSubmit={handleSubmit}
         >
           {({ values, errors, touched, handleChange, handleBlur, handleSubmit, isSubmitting, setFieldValue }) => (
             <View style={styles.form}>
+              <TextInput
+                label="Name*"
+                value={values.name}
+                onChangeText={handleChange('name')}
+                onBlur={handleBlur('name')}
+                error={touched.name && !!errors.name}
+                style={styles.input}
+              />
+              {touched.name && errors.name && (
+                <Text style={styles.errorText}>{errors.name}</Text>
+              )}
+
               <TextInput
                 label="Username*"
                 value={values.username}
@@ -89,12 +137,56 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 <Text style={styles.errorText}>{errors.password}</Text>
               )}
 
+              <TextInput
+                label="Email (optional)"
+                value={values.email}
+                onChangeText={handleChange('email')}
+                onBlur={handleBlur('email')}
+                error={touched.email && !!errors.email}
+                style={styles.input}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+              {touched.email && errors.email && (
+                <Text style={styles.errorText}>{errors.email}</Text>
+              )}
+
               <View style={styles.switchContainer}>
-                <Text style={styles.switchLabel}>Master User</Text>
-                <Switch
-                  value={values.is_master}
-                  onValueChange={(value) => setFieldValue('is_master', value)}
-                />
+                <Text style={styles.switchLabel}>User Role</Text>
+                <View style={styles.roleSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.roleButton,
+                      values.role === 'employee' && styles.activeRoleButton
+                    ]}
+                    onPress={() => setFieldValue('role', 'employee')}
+                  >
+                    <Text 
+                      style={[
+                        styles.roleButtonText,
+                        values.role === 'employee' && styles.activeRoleButtonText
+                      ]}
+                    >
+                      Employee
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.roleButton,
+                      values.role === 'master' && styles.activeRoleButton
+                    ]}
+                    onPress={() => setFieldValue('role', 'master')}
+                  >
+                    <Text 
+                      style={[
+                        styles.roleButtonText,
+                        values.role === 'master' && styles.activeRoleButtonText
+                      ]}
+                    >
+                      Master
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
               <Text style={styles.switchDescription}>
                 Master users have full access including product management and user administration.
@@ -110,11 +202,11 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 </Button>
                 <Button
                   mode="contained"
-                  onPress={handleSubmit}
+                  onPress={() => handleSubmit()}
                   loading={isSubmitting}
                   style={styles.button}
                 >
-                  Create
+                  {isUserCreation ? 'Create' : 'Sign Up'}
                 </Button>
               </View>
             </View>
@@ -130,7 +222,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 12,
     padding: 20,
-    maxHeight: '80%',
+    maxHeight: '90%',
   },
   header: {
     flexDirection: 'row',
@@ -163,6 +255,29 @@ const styles = StyleSheet.create({
   switchLabel: {
     fontSize: 16,
     color: '#1f2937',
+    fontWeight: '500',
+  },
+  roleSelector: {
+    flexDirection: 'row',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    overflow: 'hidden',
+  },
+  roleButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#f9fafb',
+  },
+  activeRoleButton: {
+    backgroundColor: '#2563eb',
+  },
+  roleButtonText: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  activeRoleButtonText: {
+    color: 'white',
     fontWeight: '500',
   },
   switchDescription: {

@@ -95,7 +95,7 @@ export const CreateSubcategoryModal: React.FC<CreateSubcategoryModalProps> = ({
                 </Button>
                 <Button
                   mode="contained"
-                  onPress={handleSubmit}
+                  onPress={() => handleSubmit()}
                   loading={isSubmitting}
                   style={styles.button}
                 >

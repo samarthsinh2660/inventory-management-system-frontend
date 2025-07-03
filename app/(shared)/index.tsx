@@ -23,10 +23,10 @@ export default function Dashboard() {
   const products = useAppSelector(state => state.products.list);
   const inventoryEntries = useAppSelector(state => state.inventory.entries);
   const alerts = useAppSelector(state => state.alerts);
-  const users = useAppSelector(state => state.users.list);
+  const users = useAppSelector(state => state.users.list || []);
   const [refreshing, setRefreshing] = React.useState(false);
 
-  const isMaster = user?.is_master || false;
+  const isMaster = user?.role === 'master';
 
   const todayEntries = inventoryEntries.filter(entry => {
     const today = new Date().toDateString();
@@ -226,7 +226,7 @@ export default function Dashboard() {
               <StatCard
                 title="Total Users"
                 value={users.length}
-                subtitle={`${users.filter(u => u.is_master).length} masters`}
+                subtitle={`${users.filter(u => u.role === 'master').length} masters`}
                 icon={<Users size={20} color="#8b5cf6" />}
                 color="#8b5cf6"
                 trend="neutral"
@@ -295,7 +295,7 @@ export default function Dashboard() {
                 subtitle="Add inventory entry"
                 icon={<Zap size={20} color="#8b5cf6" />}
                 color="#8b5cf6"
-                onPress={() => router.push('/(tabs)/inventory')}
+                onPress={() => router.push('/inventory')}
                 trend="neutral"
               />
             </View>
@@ -308,7 +308,7 @@ export default function Dashboard() {
             <Text style={styles.sectionTitle}>
               {isMaster ? 'Recent Activity' : 'My Recent Activity'}
             </Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/inventory')}>
+            <TouchableOpacity onPress={() => router.push('/inventory')}>
               <Text style={styles.sectionLink}>View All</Text>
             </TouchableOpacity>
           </View>
@@ -394,14 +394,14 @@ export default function Dashboard() {
           <View style={styles.quickActions}>
             <TouchableOpacity 
               style={styles.quickActionCard}
-              onPress={() => router.push('/(tabs)/inventory')}
+              onPress={() => router.push('/inventory')}
             >
               <Activity size={24} color="#2563eb" />
               <Text style={styles.quickActionText}>Add Entry</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.quickActionCard}
-              onPress={() => router.push('/(tabs)/products')}
+              onPress={() => router.push('/products')}
             >
               <Package size={24} color="#10b981" />
               <Text style={styles.quickActionText}>View Products</Text>

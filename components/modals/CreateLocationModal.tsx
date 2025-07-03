@@ -95,7 +95,7 @@ export const CreateLocationModal: React.FC<CreateLocationModalProps> = ({
                 </Button>
                 <Button
                   mode="contained"
-                  onPress={handleSubmit}
+                  onPress={() => handleSubmit()}
                   loading={isSubmitting}
                   style={styles.button}
                 >

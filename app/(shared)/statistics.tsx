@@ -55,8 +55,8 @@ export default function Statistics() {
   }, 0);
 
   const totalUsers = users.length;
-  const masterUsers = users.filter(u => u.is_master).length;
-  const employeeUsers = users.filter(u => !u.is_master).length;
+  const masterUsers = users.filter(u => u.role === 'master').length;
+  const employeeUsers = users.filter(u => u.role === 'employee').length;
 
   const totalEntries = inventoryEntries.length;
   const todayEntries = inventoryEntries.filter(entry => {
