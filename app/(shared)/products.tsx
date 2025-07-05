@@ -68,7 +68,7 @@ export default function Products() {
     if (filters.source_type && product.source_type !== filters.source_type) return false;
     
     // Formula filter
-    if (filters.formula_id && product.formula_id !== filters.formula_id) return false;
+    if (filters.formula_id && product.product_formula_id !== filters.formula_id) return false;
 
     return true;
   };
@@ -100,7 +100,7 @@ export default function Products() {
     setRefreshing(true);
     try {
       await Promise.all([
-        dispatch(fetchProducts()),
+        dispatch(fetchProducts({ page: 1, limit: 10 })),
         dispatch(fetchSubcategories()),
         dispatch(fetchLocations()),
         dispatch(fetchFormulas()),
@@ -121,13 +121,44 @@ export default function Products() {
           <Text style={styles.productName}>{item.name}</Text>
           <Text style={styles.productUnit}>{item.unit}</Text>
         </View>
-        <CategoryBadge category={item.category} />
+        <View style={styles.statusContainer}>
+          <CategoryBadge category={item.category} />
+          {/* Stock Status Indicator */}
+          <View style={[
+            styles.stockIndicator,
+            {
+              backgroundColor: (item.current_stock || 0) < (item.min_stock_threshold || 0) 
+                ? '#fef2f2' 
+                : (item.current_stock || 0) === 0 
+                  ? '#f3f4f6' 
+                  : '#f0fdf4'
+            }
+          ]}>
+            <Text style={[
+              styles.stockIndicatorText,
+              {
+                color: (item.current_stock || 0) < (item.min_stock_threshold || 0) 
+                  ? '#dc2626' 
+                  : (item.current_stock || 0) === 0 
+                    ? '#6b7280' 
+                    : '#16a34a'
+              }
+            ]}>
+              {(item.current_stock || 0) < (item.min_stock_threshold || 0) 
+                ? 'Low Stock' 
+                : (item.current_stock || 0) === 0 
+                  ? 'Out of Stock' 
+                  : 'In Stock'
+              }
+            </Text>
+          </View>
+        </View>
       </View>
       
       <View style={styles.productDetails}>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Cost:</Text>
-          <Text style={styles.detailValue}>${item.cost}</Text>
+          <Text style={styles.detailValue}>₹{item.price}</Text>
         </View>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Stock:</Text>
@@ -155,36 +186,6 @@ export default function Products() {
       <View style={styles.productFooter}>
         <Text style={styles.subcategoryText}>{item.subcategory_name}</Text>
         <Text style={styles.locationText}>{item.location_name}</Text>
-      </View>
-
-      {/* Stock Status Indicator */}
-      <View style={[
-        styles.stockIndicator,
-        {
-          backgroundColor: (item.current_stock || 0) < (item.min_stock_threshold || 0) 
-            ? '#fef2f2' 
-            : (item.current_stock || 0) === 0 
-              ? '#f3f4f6' 
-              : '#f0fdf4'
-        }
-      ]}>
-        <Text style={[
-          styles.stockIndicatorText,
-          {
-            color: (item.current_stock || 0) < (item.min_stock_threshold || 0) 
-              ? '#dc2626' 
-              : (item.current_stock || 0) === 0 
-                ? '#6b7280' 
-                : '#16a34a'
-          }
-        ]}>
-          {(item.current_stock || 0) < (item.min_stock_threshold || 0) 
-            ? 'Low Stock' 
-            : (item.current_stock || 0) === 0 
-              ? 'Out of Stock' 
-              : 'In Stock'
-          }
-        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -515,13 +516,17 @@ const styles = StyleSheet.create({
     elevation: 2,
     borderWidth: 1,
     borderColor: '#f1f5f9',
-    position: 'relative',
   },
   productHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 12,
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   productInfo: {
     flex: 1,
@@ -580,9 +585,6 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   stockIndicator: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,

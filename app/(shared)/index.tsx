@@ -7,10 +7,18 @@ import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { IfMaster } from '../../components/IfMaster';
 import { fetchProducts } from '../../store/slices/productsSlice';
-import { fetchInventoryEntries } from '../../store/slices/inventorySlice';
-import { fetchAlerts } from '../../store/slices/alertsSlice';
+import { fetchInventoryEntries, fetchUserEntries, fetchInventoryBalance } from '../../store/slices/inventorySlice';
+import { fetchAlerts, fetchNotifications } from '../../store/slices/alertsSlice';
 import { fetchUsers } from '../../store/slices/usersSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { 
+  getUsernameById, 
+  getTodayEntries, 
+  getLowStockProducts, 
+  calculateTotalInventoryValue, 
+  getInStockProductsCount, 
+  getEntryCountsByType 
+} from '../../utils/helperFunctions';
 
 const { width } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -21,45 +29,39 @@ export default function Dashboard() {
   const dispatch = useAppDispatch();
   const user = useAppSelector(state => state.auth.user);
   const products = useAppSelector(state => state.products.list);
-  const inventoryEntries = useAppSelector(state => state.inventory.entries);
-  const alerts = useAppSelector(state => state.alerts);
   const users = useAppSelector(state => state.users.list || []);
+  const { entries: inventoryEntries, userEntries, balance: inventoryBalance } = useAppSelector(state => state.inventory);
+  const { alerts, notifications } = useAppSelector(state => state.alerts);
   const [refreshing, setRefreshing] = React.useState(false);
 
   const isMaster = user?.role === 'master';
 
-  const todayEntries = inventoryEntries.filter(entry => {
-    const today = new Date().toDateString();
-    const entryDate = new Date(entry.created_at).toDateString();
-    return today === entryDate;
-  });
-
-  const myEntries = isMaster ? inventoryEntries : inventoryEntries.filter(entry => entry.created_by === user?.username);
-  const myTodayEntries = isMaster ? todayEntries : todayEntries.filter(entry => entry.created_by === user?.username);
-
-  const lowStockProducts = products.filter(product => 
-    product.current_stock !== undefined && 
-    product.min_stock_threshold !== undefined &&
-    product.current_stock < product.min_stock_threshold
-  );
-
-  const totalValue = products.reduce((sum, product) => {
-    return sum + (product.current_stock || 0) * product.cost;
-  }, 0);
-
-  const inStockProducts = products.filter(p => (p.current_stock || 0) > 0).length;
-  const totalInEntries = myTodayEntries.filter(e => e.entry_type.includes('in')).length;
-  const totalOutEntries = myTodayEntries.filter(e => e.entry_type.includes('out')).length;
+  // Calculate unresolved alerts count from notifications
+  const unresolvedAlertsCount = notifications.filter(notification => !notification.is_read).length;
+  const todayEntries = getTodayEntries(inventoryEntries, userEntries, users, isMaster);
+  const myEntries = isMaster ? inventoryEntries : userEntries;
+  const myTodayEntries = todayEntries;
+  
+  const lowStockProducts = getLowStockProducts(inventoryBalance, products);
+  const totalValue = calculateTotalInventoryValue(inventoryBalance, products);
+  const inStockProducts = getInStockProductsCount(inventoryBalance);
+  const { totalInEntries, totalOutEntries } = getEntryCountsByType(myTodayEntries);
 
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
+      // Fetch all data with proper parameters for dashboard - higher limit to get more complete data
+      const dashboardParams = { page: 1, limit: 100 };
+      
       await Promise.all([
-        dispatch(fetchProducts()),
-        dispatch(fetchInventoryEntries()),
-        isMaster && dispatch(fetchAlerts()),
+        dispatch(fetchProducts(dashboardParams)),
+        dispatch(fetchInventoryEntries(dashboardParams)),
+        dispatch(fetchInventoryBalance()),
+        !isMaster && dispatch(fetchUserEntries(dashboardParams)),
+        isMaster && dispatch(fetchAlerts(dashboardParams)),
+        isMaster && dispatch(fetchNotifications()),
         isMaster && dispatch(fetchUsers()),
-      ]);
+      ].filter(Boolean));
     } finally {
       setRefreshing(false);
     }
@@ -168,14 +170,14 @@ export default function Dashboard() {
             </Text>
           </View>
           <IfMaster>
-            {alerts.unresolvedCount > 0 && (
+            {unresolvedAlertsCount > 0 && (
               <TouchableOpacity 
                 style={styles.notificationButton}
                 onPress={() => router.push('/alerts')}
               >
                 <Bell size={20} color="#ef4444" />
                 <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationBadgeText}>{alerts.unresolvedCount}</Text>
+                  <Text style={styles.notificationBadgeText}>{unresolvedAlertsCount}</Text>
                 </View>
               </TouchableOpacity>
             )}
@@ -216,12 +218,12 @@ export default function Dashboard() {
               />
               <StatCard
                 title="Low Stock Alerts"
-                value={alerts.unresolvedCount}
+                value={unresolvedAlertsCount}
                 subtitle={lowStockProducts.length > 0 ? "Needs attention" : "All good"}
                 icon={<AlertTriangle size={20} color="#ef4444" />}
                 color="#ef4444"
                 onPress={() => router.push('/alerts')}
-                trend={alerts.unresolvedCount > 0 ? "down" : "up"}
+                trend={unresolvedAlertsCount > 0 ? "down" : "up"}
               />
               <StatCard
                 title="Total Users"
@@ -235,7 +237,7 @@ export default function Dashboard() {
           </View>
 
           {/* Alerts Card for Master */}
-          {alerts.unresolvedCount > 0 && (
+          {unresolvedAlertsCount > 0 && (
             <TouchableOpacity 
               style={styles.alertsCard}
               onPress={() => router.push('/alerts')}
@@ -247,7 +249,7 @@ export default function Dashboard() {
                 <View style={styles.alertsContent}>
                   <Text style={styles.alertsTitle}>Critical Stock Alerts</Text>
                   <Text style={styles.alertsSubtitle}>
-                    {alerts.unresolvedCount} product{alerts.unresolvedCount !== 1 ? 's' : ''} below minimum threshold
+                    {unresolvedAlertsCount} product{unresolvedAlertsCount !== 1 ? 's' : ''} below minimum threshold
                   </Text>
                 </View>
                 <ArrowRight size={20} color="#6b7280" />
@@ -337,7 +339,9 @@ export default function Dashboard() {
                     {new Date(entry.created_at).toLocaleTimeString()} • {entry.location_name}
                   </Text>
                   {isMaster && (
-                    <Text style={styles.activityUser} numberOfLines={1}>by {entry.created_by}</Text>
+                    <Text style={styles.activityUser} numberOfLines={1}>
+                      by {entry.username}
+                    </Text>
                   )}
                 </View>
               </View>

@@ -4,26 +4,29 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, RefreshCw } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
-import { fetchAlerts, resolveAlert, checkStockAlerts } from '../../store/slices/alertsSlice';
+import { fetchNotifications, resolveAlert, checkAlerts, Notification } from '../../store/slices/alertsSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import Toast from 'react-native-toast-message';
 
 export default function Alerts() {
   const dispatch = useAppDispatch();
-  const { list: alerts, loading, unresolvedCount } = useAppSelector(state => state.alerts);
+  const { notifications, loading } = useAppSelector(state => state.alerts);
+  const unresolvedCount = useAppSelector(state => 
+    state.alerts.notifications.filter(notification => !notification.is_read).length
+  );
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
-      await dispatch(fetchAlerts());
+      await dispatch(fetchNotifications());
     } finally {
       setRefreshing(false);
     }
   }, [dispatch]);
 
   useEffect(() => {
-    dispatch(fetchAlerts());
+    dispatch(fetchNotifications());
   }, [dispatch]);
 
   const handleResolveAlert = async (alertId: number) => {
@@ -45,12 +48,14 @@ export default function Alerts() {
 
   const handleRecheckAlerts = async () => {
     try {
-      await dispatch(checkStockAlerts()).unwrap();
+      await dispatch(checkAlerts()).unwrap();
       Toast.show({
         type: 'success',
         text1: 'Stock Check Complete',
         text2: 'Stock alerts have been updated',
       });
+      // Refresh notifications after checking alerts
+      dispatch(fetchNotifications());
     } catch (error: any) {
       Toast.show({
         type: 'error',
@@ -60,11 +65,11 @@ export default function Alerts() {
     }
   };
 
-  const renderAlert = ({ item }: { item: any }) => (
-    <View style={[styles.alertCard, item.is_resolved && styles.resolvedCard]}>
+  const renderNotification = ({ item }: { item: Notification }) => (
+    <View style={[styles.alertCard, item.is_read && styles.resolvedCard]}>
       <View style={styles.alertHeader}>
         <View style={styles.alertIcon}>
-          {item.is_resolved ? (
+          {item.is_read ? (
             <CheckCircle size={20} color="#10b981" />
           ) : (
             <AlertTriangle size={20} color="#ef4444" />
@@ -74,10 +79,10 @@ export default function Alerts() {
           <Text style={styles.productName}>{item.product_name}</Text>
           <Text style={styles.location}>{item.location_name}</Text>
         </View>
-        {!item.is_resolved && (
+        {!item.is_read && (
           <TouchableOpacity
             style={styles.resolveButton}
-            onPress={() => handleResolveAlert(item.id)}
+            onPress={() => handleResolveAlert(item.stock_alert_id)}
           >
             <Text style={styles.resolveButtonText}>Resolve</Text>
           </TouchableOpacity>
@@ -115,9 +120,9 @@ export default function Alerts() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Stock Alerts</Text>
+          <Text style={styles.title}>Stock Notifications</Text>
           <Text style={styles.subtitle}>
-            {unresolvedCount} unresolved alert{unresolvedCount !== 1 ? 's' : ''}
+            {unresolvedCount} unread notification{unresolvedCount !== 1 ? 's' : ''}
           </Text>
         </View>
         <TouchableOpacity
@@ -125,13 +130,13 @@ export default function Alerts() {
           onPress={handleRecheckAlerts}
         >
           <RefreshCw size={20} color="#2563eb" />
-          <Text style={styles.recheckButtonText}>Recheck</Text>
+          <Text style={styles.recheckButtonText}>Check Alerts</Text>
         </TouchableOpacity>
       </View>
 
       <FlatList
-        data={alerts}
-        renderItem={renderAlert}
+        data={notifications}
+        renderItem={renderNotification}
         keyExtractor={(item) => item.id.toString()}
         style={styles.list}
         contentContainerStyle={styles.listContent}
@@ -142,7 +147,7 @@ export default function Alerts() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <AlertTriangle size={48} color="#d1d5db" />
-            <Text style={styles.emptyText}>No alerts found</Text>
+            <Text style={styles.emptyText}>No notifications found</Text>
             <Text style={styles.emptySubtext}>
               All products are above their minimum stock thresholds
             </Text>

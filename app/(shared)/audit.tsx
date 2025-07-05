@@ -4,13 +4,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FileText, RotateCcw, Plus, Minus, CreditCard as Edit, Filter } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
-import { fetchAuditLogs, revertChange } from '../../store/slices/auditLogsSlice';
+import { fetchAuditLogs, deleteAuditLog } from '../../store/slices/auditLogsSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import Toast from 'react-native-toast-message';
 
 export default function AuditLogs() {
   const dispatch = useAppDispatch();
-  const { list: auditLogs, loading } = useAppSelector(state => state.auditLogs);
+  const { list: auditLogs = [], loading } = useAppSelector(state => state.auditLogs);
   const user = useAppSelector(state => state.auth.user);
   const [refreshing, setRefreshing] = useState(false);
   const [showMyLogsOnly, setShowMyLogsOnly] = useState(false);
@@ -25,25 +25,27 @@ export default function AuditLogs() {
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
-      await dispatch(fetchAuditLogs());
+      await dispatch(fetchAuditLogs({}));
     } finally {
       setRefreshing(false);
     }
   }, [dispatch]);
 
   useEffect(() => {
-    dispatch(fetchAuditLogs());
+    dispatch(fetchAuditLogs({}));
   }, [dispatch]);
+
 
   const handleRevertChange = async (logId: number) => {
     try {
-      await dispatch(revertChange(logId)).unwrap();
+      await dispatch(deleteAuditLog({ id: logId})).unwrap();
       Toast.show({
         type: 'success',
         text1: 'Change Reverted',
         text2: 'The change has been successfully reverted',
       });
-      dispatch(fetchAuditLogs()); // Refresh the list
+      // Refresh the list after successful revert
+      dispatch(fetchAuditLogs({}));
     } catch (error: any) {
       Toast.show({
         type: 'error',
@@ -84,9 +86,12 @@ export default function AuditLogs() {
     if (!values) return null;
     
     return Object.entries(values).map(([key, value]) => {
+      // Skip internal fields for cleaner display
+      if (key === 'id' || key === 'created_at' || key === 'updated_at') return null;
+      
       const formattedValue = value === null ? 'null' : 
                            value === undefined ? 'undefined' : 
-                           typeof value === 'object' ? JSON.stringify(value) : 
+                           typeof value === 'object' ? JSON.stringify(value, null, 2) : 
                            String(value);
       
       return (
@@ -95,61 +100,139 @@ export default function AuditLogs() {
           <Text style={styles.valueText}>{formattedValue}</Text>
         </View>
       );
+    }).filter(Boolean); // Filter out null values
+  };
+
+  const formatTimestamp = (timestamp: string) => {
+    if (!timestamp) return '';
+    
+    const date = new Date(timestamp);
+    return date.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
     });
   };
 
-  const renderAuditLog = ({ item }: { item: any }) => (
-    <View style={styles.logCard}>
-      <View style={styles.logHeader}>
-        <View style={[styles.actionBadge, { backgroundColor: `${getActionColor(item.action)}15` }]}>
-          {getActionIcon(item.action)}
-          <Text style={[styles.actionText, { color: getActionColor(item.action) }]}>
-            {item.action}
+  const getEntryTypeStyle = (entryType: string | undefined) => {
+    if (!entryType) return {};
+    
+    let backgroundColor = '#f0f9ff';
+    let textColor = '#0369a1';
+    
+    if (entryType.includes('in')) {
+      backgroundColor = '#f0fdf4';
+      textColor = '#16a34a';
+    } else if (entryType.includes('out')) {
+      backgroundColor = '#fef2f2';
+      textColor = '#dc2626';
+    }
+    
+    if (entryType.includes('manufacturing')) {
+      textColor = '#9333ea'; // Purple for manufacturing
+    }
+    
+    return { backgroundColor, textColor };
+  };
+
+  const renderAuditLog = ({ item }: { item: any }) => {
+    // Extract the entry_type from new_data if available
+    const entryType = item.new_data?.entry_type;
+    const entryTypeStyles = getEntryTypeStyle(entryType);
+    
+    // Get product name or ID for better identification
+    const productName = item.new_data?.product_name || 
+                       (item.new_data?.product_id ? `Product #${item.new_data.product_id}` : '');
+    
+    // Get entry quantity for display
+    const quantity = item.new_data?.quantity !== undefined ? `${item.new_data.quantity}` : '';
+
+    return (
+      <View style={styles.logCard}>
+        <View style={styles.logHeader}>
+          <View style={styles.logHeaderLeft}>
+            <View style={[styles.actionBadge, { backgroundColor: `${getActionColor(item.action)}15` }]}>
+              {getActionIcon(item.action)}
+              <Text style={[styles.actionText, { color: getActionColor(item.action) }]}>
+                {item.action}
+              </Text>
+            </View>
+            
+            {entryType && (
+              <View style={[styles.entryTypeBadge, { backgroundColor: entryTypeStyles.backgroundColor }]}>
+                <Text style={[styles.entryTypeText, { color: entryTypeStyles.textColor }]}>
+                  {entryType.replace('_', ' ')}
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.timestamp}>
+            {formatTimestamp(item.timestamp)}
           </Text>
         </View>
-        <Text style={styles.timestamp}>
-          {new Date(item.created_at).toLocaleString()}
-        </Text>
-      </View>
 
-      <View style={styles.logContent}>
-        <Text style={styles.tableName}>{item.table_name}</Text>
-        <Text style={styles.recordId}>Record ID: {item.record_id}</Text>
-        <Text style={styles.username}>By: {item.username}</Text>
-      </View>
-
-      {(item.old_values || item.new_values) && (
-        <View style={styles.valuesContainer}>
-          {item.old_values && (
-            <View style={styles.valuesSection}>
-              <Text style={styles.valuesTitle}>Old Values:</Text>
-              <View style={styles.valuesList}>
-                {formatObjectValues(item.old_values)}
-              </View>
-            </View>
-          )}
-          {item.new_values && (
-            <View style={styles.valuesSection}>
-              <Text style={styles.valuesTitle}>New Values:</Text>
-              <View style={styles.valuesList}>
-                {formatObjectValues(item.new_values)}
-              </View>
-            </View>
-          )}
+        <View style={styles.logContent}>
+          <View style={styles.contentRow}>
+            <Text style={styles.productName} numberOfLines={1} ellipsizeMode="tail">
+              {productName || 'Unknown Product'}
+            </Text>
+            {quantity && (
+              <Text style={styles.quantityBadge}>
+                {quantity} {item.new_data?.unit || 'units'}
+              </Text>
+            )}
+          </View>
+          
+          <View style={styles.infoRow}>
+            {item.entry_id && (
+              <Text style={styles.infoText}>Entry #{item.entry_id}</Text>
+            )}
+            <Text style={styles.usernameText}>By: {item.username}</Text>
+            {item.reason && (
+              <Text style={styles.reasonText} numberOfLines={1}>
+                Reason: {item.reason}
+              </Text>
+            )}
+          </View>
         </View>
-      )}
 
-      {(isMaster || (!isMaster && item.username === user?.username)) && (
-        <TouchableOpacity
-          style={styles.revertButton}
-          onPress={() => handleRevertChange(item.id)}
-        >
-          <RotateCcw size={16} color="#2563eb" />
-          <Text style={styles.revertButtonText}>Revert Change</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
+        {(item.old_data || item.new_data) && (
+          <View style={styles.valuesContainer}>
+            {item.old_data && (
+              <View style={styles.valuesSection}>
+                <Text style={styles.valuesTitle}>Previous Data:</Text>
+                <View style={styles.valuesList}>
+                  {formatObjectValues(item.old_data)}
+                </View>
+              </View>
+            )}
+            {item.new_data && Object.keys(item.new_data).length > 0 && (
+              <View style={styles.valuesSection}>
+                <Text style={styles.valuesTitle}>Details:</Text>
+                <View style={styles.valuesList}>
+                  {formatObjectValues(item.new_data)}
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
+        {(isMaster || (!isMaster && item.username === user?.username)) && (
+          <TouchableOpacity
+            style={styles.revertButton}
+            onPress={() => handleRevertChange(item.id)}
+            disabled={loading}
+          >
+            <RotateCcw size={16} color="#2563eb" />
+            <Text style={styles.revertButtonText}>Revert Change</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
 
   if (loading && !refreshing) {
     return (
@@ -292,8 +375,14 @@ const styles = StyleSheet.create({
   logHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 12,
+  },
+  logHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
   },
   actionBadge: {
     flexDirection: 'row',
@@ -303,9 +392,20 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 6,
   },
+  entryTypeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  entryTypeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
   actionText: {
     fontSize: 12,
     fontWeight: '600',
+    textTransform: 'capitalize',
   },
   timestamp: {
     fontSize: 12,
@@ -314,20 +414,46 @@ const styles = StyleSheet.create({
   logContent: {
     marginBottom: 12,
   },
-  tableName: {
+  contentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  productName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1f2937',
-    marginBottom: 4,
+    flex: 1,
   },
-  recordId: {
+  quantityBadge: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1f2937',
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    alignItems: 'center',
+  },
+  infoText: {
     fontSize: 14,
     color: '#6b7280',
-    marginBottom: 2,
   },
-  username: {
+  usernameText: {
     fontSize: 14,
     color: '#6b7280',
+    fontWeight: '500',
+  },
+  reasonText: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontStyle: 'italic',
   },
   valuesContainer: {
     backgroundColor: '#f9fafb',
@@ -367,16 +493,6 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     flex: 1,
     flexWrap: 'wrap',
-  },
-  valuesText: {
-    fontSize: 11,
-    color: '#6b7280',
-    fontFamily: 'monospace',
-    backgroundColor: 'white',
-    padding: 8,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
   },
   revertButton: {
     flexDirection: 'row',

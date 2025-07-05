@@ -14,11 +14,36 @@ export default function Settings() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const user = useAppSelector(state => state.auth.user);
-  const alerts = useAppSelector(state => state.alerts);
+  const { alerts, notifications } = useAppSelector(state => state.alerts);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
 
+
   const isMaster = user?.role === 'master';
+
+  const unresolvedAlertsCount = notifications.filter(notification => !notification.is_read).length;
+
+  const formatMemberSinceDetailed = (dateString?: string) => {
+    if (!dateString) return 'Unknown';
+    
+    try {
+      const date = new Date(dateString);
+      
+      if (isNaN(date.getTime())) {
+        return 'Unknown';
+      }
+      
+      // You can customize the format:
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      // This will show: "July 2, 2025"
+    } catch (error) {
+      return 'Unknown';
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -164,7 +189,7 @@ export default function Settings() {
                 <Text style={styles.profileSubtitle}>{user.email}</Text>
               )}
               <Text style={styles.profileDate}>
-                Member since {new Date(user?.created_at || '').toLocaleDateString()}
+                Member since {formatMemberSinceDetailed(user?.created_at)}
               </Text>
             </View>
           </View>
@@ -205,7 +230,7 @@ export default function Settings() {
                 title="Stock Alerts"
                 subtitle="View and manage stock alerts"
                 onPress={() => router.push('/alerts')}
-                badge={alerts.unresolvedCount}
+                badge={unresolvedAlertsCount}
               />
             </View>
           </View>

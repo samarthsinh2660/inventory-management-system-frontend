@@ -1,17 +1,25 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
-import { TextInput, Button } from 'react-native-paper';
+import { TextInput, Button, Chip, SegmentedButtons } from 'react-native-paper';
 import { Picker } from '@react-native-picker/picker';
-import { Package, Plus, TrendingUp, TrendingDown, ChartBar as BarChart3 } from 'lucide-react-native';
+import { Package, Plus, TrendingUp, TrendingDown, ChartBar as BarChart3, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
-import { createInventoryEntry, fetchProductStock, fetchInventoryEntries } from '../../store/slices/inventorySlice';
+import { createInventoryEntry, fetchInventoryBalance, fetchInventoryEntries, fetchUserEntries } from '../../store/slices/inventorySlice';
 import { fetchProducts } from '../../store/slices/productsSlice';
 import { fetchLocations } from '../../store/slices/locationsSlice';
 import Toast from 'react-native-toast-message';
+import { 
+  getUsernameById,
+  formatEntryType,
+  getEntryTypeColor,
+  getEntryTypeBackgroundColor,
+  enrichInventoryEntries,
+  usePagination
+} from '../../utils/helperFunctions';
 
 const validationSchema = Yup.object({
   product_id: Yup.number().min(1, 'Product is required').required('Product is required'),
@@ -23,24 +31,60 @@ const validationSchema = Yup.object({
 
 export default function InventoryScreen() {
   const dispatch = useAppDispatch();
-  const products = useAppSelector(state => state.products.list);
-  const locations = useAppSelector(state => state.locations.list);
-  const inventoryEntries = useAppSelector(state => state.inventory.entries);
-  const stock = useAppSelector(state => state.inventory.stock);
+  const products = useAppSelector(state => state.products.list || []);
+  const locations = useAppSelector(state => state.locations.list || []);
+  const { 
+    entries: allEntries = [], 
+    userEntries = [], 
+    loading, 
+    meta = { total: 0, pages: 0 }, 
+    balance = [] 
+  } = useAppSelector(state => state.inventory);
+  const users = useAppSelector(state => state.users.list || []);
+  const user = useAppSelector(state => state.auth.user);
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<number>(0);
+  const [viewMode, setViewMode] = useState<'all' | 'mine'>('all');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const itemsPerPage = 10;
+
+  const isMaster = user?.role === 'master';
+  const entries = viewMode === 'all' ? allEntries : userEntries;
+  
+  const pagination = usePagination(
+    currentPage, 
+    meta.total || 0, 
+    itemsPerPage, 
+    setCurrentPage
+  );
 
   useEffect(() => {
-    dispatch(fetchProducts());
+    dispatch(fetchProducts({ page: 1, limit: 10 }));
     dispatch(fetchLocations());
-    dispatch(fetchInventoryEntries());
+    dispatch(fetchInventoryBalance());
+    loadEntries();
   }, [dispatch]);
 
   useEffect(() => {
+    loadEntries();
+  }, [viewMode, currentPage]);
+
+  useEffect(() => {
     if (selectedProductId > 0) {
-      dispatch(fetchProductStock(selectedProductId));
+      // We already have balance data fetched on component mount
+      // No need for additional stock fetching
     }
   }, [selectedProductId, dispatch]);
+
+  const loadEntries = () => {
+    const params = { page: currentPage, limit: itemsPerPage };
+    
+    if (viewMode === 'all') {
+      dispatch(fetchInventoryEntries(params));
+    } else {
+      dispatch(fetchUserEntries(params));
+    }
+  };
 
   const handleSubmit = async (values: any, { resetForm }: any) => {
     try {
@@ -61,7 +105,10 @@ export default function InventoryScreen() {
       resetForm();
       setSelectedProductId(0);
       setShowEntryForm(false);
-      dispatch(fetchInventoryEntries());
+      
+      // Refresh both the entries and the balance data after a successful entry
+      loadEntries();
+      dispatch(fetchInventoryBalance());
     } catch (error: any) {
       Toast.show({
         type: 'error',
@@ -72,79 +119,93 @@ export default function InventoryScreen() {
   };
 
   const selectedProduct = products.find(p => p.id === selectedProductId);
-  const currentStock = selectedProductId > 0 ? (stock[selectedProductId] || 0) : 0;
+  
+  // Find the current stock for the selected product from the balance data
+  const selectedProductStock = selectedProductId > 0 
+    ? balance.find(item => item.product_id === selectedProductId)?.total_quantity || 0
+    : 0;
 
-  const recentEntries = inventoryEntries.slice(0, 10);
+  const recentEntries = entries.slice(0, 10);
 
-  const StockCard = ({ product }: { product: any }) => (
-    <View style={styles.stockCard}>
-      <View style={styles.stockHeader}>
-        <Text style={styles.stockProductName}>{product.name}</Text>
-        <View style={[styles.stockBadge, { 
-          backgroundColor: (product.current_stock || 0) < (product.min_stock_threshold || 0) ? '#fef2f2' : '#f0fdf4' 
-        }]}>
-          <Text style={[styles.stockBadgeText, { 
-            color: (product.current_stock || 0) < (product.min_stock_threshold || 0) ? '#dc2626' : '#16a34a' 
+  const StockCard = ({ product }: { product: any }) => {
+    // Find stock information for this product from balance
+    const stockInfo = balance.find(item => item.product_id === product.id);
+    const currentStock = stockInfo ? stockInfo.total_quantity : 0;
+    const minThreshold = product.min_stock_threshold || 0;
+    
+    return (
+      <View style={styles.stockCard}>
+        <View style={styles.stockHeader}>
+          <Text style={styles.stockProductName}>{product.name}</Text>
+          <View style={[styles.stockBadge, { 
+            backgroundColor: currentStock < minThreshold ? '#fef2f2' : '#f0fdf4' 
           }]}>
-            {(product.current_stock || 0) < (product.min_stock_threshold || 0) ? 'Low' : 'OK'}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.stockDetails}>
-        <View style={styles.stockItem}>
-          <Text style={styles.stockLabel}>Current Stock</Text>
-          <Text style={styles.stockValue}>{product.current_stock || 0} {product.unit}</Text>
-        </View>
-        {product.min_stock_threshold && (
-          <View style={styles.stockItem}>
-            <Text style={styles.stockLabel}>Minimum</Text>
-            <Text style={styles.stockValue}>{product.min_stock_threshold} {product.unit}</Text>
+            <Text style={[styles.stockBadgeText, { 
+              color: currentStock < minThreshold ? '#dc2626' : '#16a34a' 
+            }]}>
+              {currentStock < minThreshold ? 'Low' : 'OK'}
+            </Text>
           </View>
-        )}
-        <View style={styles.stockItem}>
-          <Text style={styles.stockLabel}>Value</Text>
-          <Text style={styles.stockValue}>${((product.current_stock || 0) * product.cost).toFixed(2)}</Text>
+        </View>
+        <View style={styles.stockDetails}>
+          <View style={styles.stockItem}>
+            <Text style={styles.stockLabel}>Current Stock</Text>
+            <Text style={styles.stockValue}>{currentStock} {product.unit}</Text>
+          </View>
+          <View style={styles.stockItem}>
+            <Text style={styles.stockLabel}>Min Threshold</Text>
+            <Text style={styles.stockValue}>{minThreshold} {product.unit}</Text>
+          </View>
+        </View>
+        <Text style={styles.stockLocation}>{stockInfo?.location_name || 'Unknown Location'}</Text>
+      </View>
+    );
+  };
+
+  const EntryItem = ({ entry }: { entry: any }) => {
+    const displayUsername = entry.username || getUsernameById(entry.user_id, users);
+    
+    return (
+      <View style={styles.entryItem}>
+        <View style={[styles.entryIcon, { 
+          backgroundColor: getEntryTypeBackgroundColor(entry.entry_type)
+        }]}>
+          {entry.entry_type.includes('in') ? (
+            <TrendingUp size={16} color={getEntryTypeColor(entry.entry_type)} />
+          ) : (
+            <TrendingDown size={16} color={getEntryTypeColor(entry.entry_type)} />
+          )}
+        </View>
+        <View style={styles.entryContent}>
+          <Text style={styles.entryProduct}>{entry.product_name}</Text>
+          <Text style={styles.entryDetails}>
+            {formatEntryType(entry.entry_type)}: {Math.abs(entry.quantity)} units
+          </Text>
+          <View style={styles.entryFooter}>
+            <Text style={styles.entryTime}>
+              {new Date(entry.created_at).toLocaleDateString()} • {entry.location_name}
+            </Text>
+            {isMaster && (
+              <Text style={styles.entryUser}>by {displayUsername}</Text>
+            )}
+          </View>
         </View>
       </View>
-      <Text style={styles.stockLocation}>{product.location_name}</Text>
-    </View>
-  );
-
-  const EntryItem = ({ entry }: { entry: any }) => (
-    <View style={styles.entryItem}>
-      <View style={[styles.entryIcon, { 
-        backgroundColor: entry.entry_type.includes('in') ? '#dcfce7' : '#fef2f2' 
-      }]}>
-        {entry.entry_type.includes('in') ? (
-          <TrendingUp size={16} color="#16a34a" />
-        ) : (
-          <TrendingDown size={16} color="#dc2626" />
-        )}
-      </View>
-      <View style={styles.entryContent}>
-        <Text style={styles.entryProduct}>{entry.product_name}</Text>
-        <Text style={styles.entryDetails}>
-          {entry.entry_type.replace('_', ' ').toUpperCase()}: {entry.quantity} units
-        </Text>
-        <Text style={styles.entryTime}>
-          {new Date(entry.created_at).toLocaleString()} • {entry.location_name}
-        </Text>
-      </View>
-    </View>
-  );
+    );
+  };
 
   if (showEntryForm) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => setShowEntryForm(false)}>
-            <Text style={styles.backButton}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>New Entry</Text>
-          <View style={{ width: 50 }} />
+          <View style={styles.headerContent}>
+            <TouchableOpacity onPress={() => setShowEntryForm(false)}>
+              <Text style={styles.backButton}>← Back</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>New Inventory Entry</Text>
+          </View>
         </View>
-
-        <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.form}>
           <Formik
             initialValues={{
               product_id: 0,
@@ -156,131 +217,106 @@ export default function InventoryScreen() {
             validationSchema={validationSchema}
             onSubmit={handleSubmit}
           >
-            {({ values, errors, touched, handleChange, handleBlur, handleSubmit, isSubmitting, setFieldValue }) => (
+            {({ handleChange, handleSubmit, values, errors, touched, setFieldValue }) => (
               <View>
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Product Selection</Text>
-                  
-                  <View style={styles.pickerContainer}>
-                    <Text style={styles.label}>Product*</Text>
-                    <View style={styles.picker}>
-                      <Picker
-                        selectedValue={values.product_id}
-                        onValueChange={(value) => {
-                          setFieldValue('product_id', value);
-                          setSelectedProductId(value);
-                        }}
-                      >
-                        <Picker.Item label="Select Product" value={0} />
-                        {products.map((product) => (
-                          <Picker.Item
-                            key={product.id}
-                            label={`${product.name} (${product.unit})`}
-                            value={product.id}
-                          />
-                        ))}
-                      </Picker>
-                    </View>
+                <View style={styles.pickerContainer}>
+                  <Text style={styles.label}>Product</Text>
+                  <View style={styles.picker}>
+                    <Picker
+                      selectedValue={values.product_id}
+                      onValueChange={(itemValue) => {
+                        setFieldValue('product_id', itemValue);
+                        setSelectedProductId(Number(itemValue));
+                      }}
+                    >
+                      <Picker.Item label="Select a product" value={0} />
+                      {products.map(product => (
+                        <Picker.Item key={product.id} label={product.name} value={product.id} />
+                      ))}
+                    </Picker>
                   </View>
-                  {touched.product_id && errors.product_id && (
+                  {errors.product_id && touched.product_id && (
                     <Text style={styles.errorText}>{errors.product_id}</Text>
                   )}
+                </View>
 
-                  {selectedProduct && (
-                    <View style={styles.productInfo}>
-                      <Text style={styles.productInfoTitle}>Current Stock Information</Text>
-                      <View style={styles.stockInfo}>
-                        <Text style={styles.stockText}>
-                          Current Stock: {currentStock} {selectedProduct.unit}
-                        </Text>
-                        {selectedProduct.min_stock_threshold && (
-                          <Text style={[styles.stockText, { 
-                            color: currentStock < selectedProduct.min_stock_threshold ? '#ef4444' : '#10b981' 
-                          }]}>
-                            Minimum: {selectedProduct.min_stock_threshold} {selectedProduct.unit}
-                          </Text>
-                        )}
-                      </View>
+                {selectedProduct && (
+                  <View style={styles.productInfo}>
+                    <Text style={styles.productInfoTitle}>{selectedProduct.name} - Current Stock</Text>
+                    <View style={styles.stockInfo}>
+                      <Text style={styles.stockText}>Available: {selectedProductStock} {selectedProduct.unit}</Text>
+                      <Text style={styles.stockText}>
+                        Min Required: {selectedProduct.min_stock_threshold || 0} {selectedProduct.unit}
+                      </Text>
                     </View>
+                  </View>
+                )}
+
+                <View style={styles.pickerContainer}>
+                  <Text style={styles.label}>Entry Type</Text>
+                  <View style={styles.picker}>
+                    <Picker
+                      selectedValue={values.entry_type}
+                      onValueChange={handleChange('entry_type')}
+                    >
+                      <Picker.Item label="Manual In" value="manual_in" />
+                      <Picker.Item label="Manual Out" value="manual_out" />
+                      <Picker.Item label="Manufacturing In" value="manufacturing_in" />
+                      <Picker.Item label="Manufacturing Out" value="manufacturing_out" />
+                    </Picker>
+                  </View>
+                  {errors.entry_type && touched.entry_type && (
+                    <Text style={styles.errorText}>{errors.entry_type}</Text>
                   )}
                 </View>
 
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Entry Details</Text>
-                  
-                  <View style={styles.pickerContainer}>
-                    <Text style={styles.label}>Entry Type*</Text>
-                    <View style={styles.picker}>
-                      <Picker
-                        selectedValue={values.entry_type}
-                        onValueChange={(value) => setFieldValue('entry_type', value)}
-                      >
-                        <Picker.Item label="Manual In" value="manual_in" />
-                        <Picker.Item label="Manual Out" value="manual_out" />
-                        <Picker.Item label="Manufacturing In" value="manufacturing_in" />
-                        <Picker.Item label="Manufacturing Out" value="manufacturing_out" />
-                      </Picker>
-                    </View>
-                  </View>
+                <TextInput
+                  label="Quantity"
+                  value={values.quantity}
+                  onChangeText={handleChange('quantity')}
+                  mode="outlined"
+                  style={styles.input}
+                  keyboardType="numeric"
+                />
+                {errors.quantity && touched.quantity && (
+                  <Text style={styles.errorText}>{errors.quantity}</Text>
+                )}
 
-                  <TextInput
-                    label="Quantity*"
-                    value={values.quantity}
-                    onChangeText={handleChange('quantity')}
-                    onBlur={handleBlur('quantity')}
-                    error={touched.quantity && !!errors.quantity}
-                    keyboardType="numeric"
-                    style={styles.input}
-                    right={selectedProduct && <TextInput.Affix text={selectedProduct.unit} />}
-                  />
-                  {touched.quantity && errors.quantity && (
-                    <Text style={styles.errorText}>{errors.quantity}</Text>
-                  )}
-
-                  <View style={styles.pickerContainer}>
-                    <Text style={styles.label}>Location*</Text>
-                    <View style={styles.picker}>
-                      <Picker
-                        selectedValue={values.location_id}
-                        onValueChange={(value) => setFieldValue('location_id', value)}
-                      >
-                        <Picker.Item label="Select Location" value={0} />
-                        {locations.map((location) => (
-                          <Picker.Item
-                            key={location.id}
-                            label={location.name}
-                            value={location.id}
-                          />
-                        ))}
-                      </Picker>
-                    </View>
+                <View style={styles.pickerContainer}>
+                  <Text style={styles.label}>Location</Text>
+                  <View style={styles.picker}>
+                    <Picker
+                      selectedValue={values.location_id?.toString() || '0'}
+                      onValueChange={handleChange('location_id')}
+                    >
+                      <Picker.Item label="Select a location" value={0} />
+                      {locations.map(location => (
+                        <Picker.Item key={location.id} label={location.name} value={location.id} />
+                      ))}
+                    </Picker>
                   </View>
-                  {touched.location_id && errors.location_id && (
+                  {errors.location_id && touched.location_id && (
                     <Text style={styles.errorText}>{errors.location_id}</Text>
                   )}
-
-                  <TextInput
-                    label="Notes"
-                    value={values.notes}
-                    onChangeText={handleChange('notes')}
-                    onBlur={handleBlur('notes')}
-                    multiline
-                    numberOfLines={3}
-                    style={styles.input}
-                    placeholder="Optional notes about this entry"
-                  />
                 </View>
+
+                <TextInput
+                  label="Notes (Optional)"
+                  value={values.notes}
+                  onChangeText={handleChange('notes')}
+                  mode="outlined"
+                  style={styles.input}
+                  multiline
+                />
 
                 <View style={styles.buttonContainer}>
                   <Button
                     mode="contained"
-                    onPress={() => handleSubmit()}
-                    loading={isSubmitting}
-                    disabled={!selectedProduct}
                     style={styles.submitButton}
                     contentStyle={styles.buttonContent}
+                    onPress={() => handleSubmit()}
                   >
-                    Submit Entry
+                    Create Entry
                   </Button>
                 </View>
               </View>
@@ -295,46 +331,106 @@ export default function InventoryScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <BarChart3 size={24} color="#2563eb" />
-          <Text style={styles.title}>Inventory Overview</Text>
+          <Text style={styles.title}>Inventory</Text>
+          <TouchableOpacity style={styles.addButton} onPress={() => setShowEntryForm(true)}>
+            <Plus size={24} color="#fff" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity 
-          style={styles.addButton}
-          onPress={() => setShowEntryForm(true)}
-        >
-          <Plus size={20} color="white" />
-        </TouchableOpacity>
       </View>
-
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Stock Levels</Text>
-          <FlatList
-            data={products}
-            renderItem={({ item }) => <StockCard product={item} />}
-            keyExtractor={(item) => item.id.toString()}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.stockList}
+        {/* Quick Actions Filter */}
+        <View style={styles.filterContainer}>
+          <SegmentedButtons
+            value={viewMode}
+            onValueChange={value => {
+              setViewMode(value as 'all' | 'mine');
+              setCurrentPage(1); // Reset to first page on filter change
+            }}
+            buttons={[
+              {
+                value: 'all',
+                label: 'All Entries',
+                disabled: !isMaster, // Only master can see all entries
+              },
+              {
+                value: 'mine',
+                label: 'My Entries',
+              },
+            ]}
+            style={styles.segmentedButtons}
           />
         </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Entries</Text>
-            <TouchableOpacity onPress={() => setShowEntryForm(true)}>
-              <Text style={styles.sectionLink}>Add Entry</Text>
+            <Text style={styles.sectionTitle}>Recent Stock Levels</Text>
+            <TouchableOpacity>
+              <Text style={styles.sectionLink}>View All</Text>
             </TouchableOpacity>
           </View>
-          {recentEntries.map((entry) => (
-            <EntryItem key={entry.id} entry={entry} />
-          ))}
-          {recentEntries.length === 0 && (
-            <View style={styles.emptyState}>
-              <Package size={32} color="#d1d5db" />
-              <Text style={styles.emptyText}>No inventory entries yet</Text>
-              <Text style={styles.emptySubtext}>Start by adding your first entry</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.stockList}
+            contentContainerStyle={{ paddingLeft: 20 }}
+          >
+            {products.slice(0, 5).map(product => (
+              <StockCard key={product.id} product={product} />
+            ))}
+          </ScrollView>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              {viewMode === 'all' ? 'All Inventory Entries' : 'My Inventory Entries'}
+            </Text>
+          </View>
+          
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#2563eb" />
+              <Text style={styles.loadingText}>Loading entries...</Text>
             </View>
+          ) : entries.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Package size={48} color="#9ca3af" />
+              <Text style={styles.emptyText}>No inventory entries found</Text>
+              <Text style={styles.emptySubtext}>
+                {viewMode === 'mine' ? 'You haven\'t created any inventory entries yet' : 'No inventory entries have been recorded yet'}
+              </Text>
+            </View>
+          ) : (
+            <>
+              {entries.map(entry => (
+                <EntryItem key={entry.id} entry={entry} />
+              ))}
+              
+              {/* Pagination Controls */}
+              {meta.pages > 1 && (
+                <View style={styles.paginationContainer}>
+                  <TouchableOpacity 
+                    style={[styles.paginationButton, !pagination.hasPrevPage && styles.paginationButtonDisabled]}
+                    onPress={pagination.goToPrevPage}
+                    disabled={!pagination.hasPrevPage}
+                  >
+                    <ChevronLeft size={20} color={pagination.hasPrevPage ? "#2563eb" : "#9ca3af"} />
+                  </TouchableOpacity>
+                  
+                  <Text style={styles.paginationText}>
+                    Page {pagination.currentPage} of {pagination.totalPages}
+                  </Text>
+                  
+                  <TouchableOpacity 
+                    style={[styles.paginationButton, !pagination.hasNextPage && styles.paginationButtonDisabled]}
+                    onPress={pagination.goToNextPage}
+                    disabled={!pagination.hasNextPage}
+                  >
+                    <ChevronRight size={20} color={pagination.hasNextPage ? "#2563eb" : "#9ca3af"} />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </>
           )}
         </View>
       </ScrollView>
@@ -345,14 +441,10 @@ export default function InventoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f9fafb',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    padding: 20,
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
@@ -361,6 +453,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    justifyContent: 'space-between',
   },
   title: {
     fontSize: 24,
@@ -382,6 +475,14 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  filterContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  segmentedButtons: {
+    backgroundColor: 'white',
   },
   section: {
     margin: 20,
@@ -499,10 +600,18 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginTop: 2,
   },
+  entryFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
   entryTime: {
     fontSize: 12,
     color: '#9ca3af',
-    marginTop: 4,
+  },
+  entryUser: {
+    fontSize: 12,
+    color: '#2563eb',
   },
   emptyState: {
     alignItems: 'center',
@@ -581,5 +690,39 @@ const styles = StyleSheet.create({
   },
   buttonContent: {
     paddingVertical: 8,
+  },
+  loadingContainer: {
+    padding: 32,
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 12,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  paginationButton: {
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    backgroundColor: 'white',
+    marginHorizontal: 8,
+  },
+  paginationButtonDisabled: {
+    borderColor: '#f3f4f6',
+    backgroundColor: '#f9fafb',
+  },
+  paginationText: {
+    fontSize: 14,
+    color: '#4b5563',
   },
 });

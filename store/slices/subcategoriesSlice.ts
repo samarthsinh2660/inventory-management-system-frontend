@@ -1,44 +1,168 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { sampleSubcategories } from '../../data/sampleData';
+import axios from 'axios';
+import { API_URL } from '../../utils/constant';
 
-interface Subcategory {
+export interface Subcategory {
   id: number;
   name: string;
-  description?: string;
-  created_at: string;
 }
 
-interface SubcategoriesState {
+// API response interface
+interface ApiResponse<T> {
+  status: string;
+  data: T;
+  message: string;
+  meta?: {
+    count?: number;
+  };
+}
+
+export interface SubcategoriesState {
   list: Subcategory[];
+  selected: Subcategory | null;
   loading: boolean;
   error: string | null;
+  meta: {
+    count: number;
+  };
 }
 
 const initialState: SubcategoriesState = {
   list: [],
+  selected: null,
   loading: false,
   error: null,
+  meta: {
+    count: 0
+  }
 };
 
-export const fetchSubcategories = createAsyncThunk('subcategories/fetchSubcategories', async () => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 300));
-  return sampleSubcategories;
+// Helper to get authorization header with token
+const getAuthHeader = (token: string) => ({
+  headers: { Authorization: `Bearer ${token}` }
 });
+
+// GET all subcategories
+export const fetchSubcategories = createAsyncThunk(
+  'subcategories/fetchSubcategories',
+  async (_, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as { auth: { accessToken: string | null } };
+      const token = state.auth.accessToken;
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
+      const response = await axios.get<ApiResponse<Subcategory[]>>(`${API_URL}/subcategories`, getAuthHeader(token));
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        return rejectWithValue(error.response.data.message || 'Failed to fetch subcategories');
+      }
+      return rejectWithValue('Failed to fetch subcategories');
+    }
+  }
+);
+
+// GET subcategory by ID
+export const fetchSubcategoryById = createAsyncThunk(
+  'subcategories/fetchSubcategoryById',
+  async (id: number, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as { auth: { accessToken: string | null } };
+      const token = state.auth.accessToken;
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
+      const response = await axios.get<ApiResponse<Subcategory>>(`${API_URL}/subcategories/${id}`, getAuthHeader(token));
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        return rejectWithValue(error.response.data.message || 'Failed to fetch subcategory');
+      }
+      return rejectWithValue('Failed to fetch subcategory');
+    }
+  }
+);
+
+// POST create subcategory
+export interface CreateSubcategoryData {
+  name: string;
+}
 
 export const createSubcategory = createAsyncThunk(
   'subcategories/createSubcategory',
-  async (data: { name: string; description?: string }) => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newSubcategory = {
-      id: Math.max(...sampleSubcategories.map(s => s.id)) + 1,
-      ...data,
-      created_at: new Date().toISOString(),
-    };
-    
-    return newSubcategory;
+  async (subcategoryData: CreateSubcategoryData, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as { auth: { accessToken: string | null } };
+      const token = state.auth.accessToken;
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
+      const response = await axios.post<ApiResponse<Subcategory>>(`${API_URL}/subcategories`, subcategoryData, getAuthHeader(token));
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        return rejectWithValue(error.response.data.message || 'Failed to create subcategory');
+      }
+      return rejectWithValue('Failed to create subcategory');
+    }
+  }
+);
+
+// PUT update subcategory
+export interface UpdateSubcategoryData {
+  id: number;
+  data: CreateSubcategoryData;
+}
+
+export const updateSubcategory = createAsyncThunk(
+  'subcategories/updateSubcategory',
+  async ({ id, data }: UpdateSubcategoryData, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as { auth: { accessToken: string | null } };
+      const token = state.auth.accessToken;
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
+      const response = await axios.put<ApiResponse<Subcategory>>(`${API_URL}/subcategories/${id}`, data, getAuthHeader(token));
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        return rejectWithValue(error.response.data.message || 'Failed to update subcategory');
+      }
+      return rejectWithValue('Failed to update subcategory');
+    }
+  }
+);
+
+// DELETE subcategory
+export const deleteSubcategory = createAsyncThunk(
+  'subcategories/deleteSubcategory',
+  async (id: number, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as { auth: { accessToken: string | null } };
+      const token = state.auth.accessToken;
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
+      await axios.delete(`${API_URL}/subcategories/${id}`, getAuthHeader(token));
+      return id;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        return rejectWithValue(error.response.data.message || 'Failed to delete subcategory');
+      }
+      return rejectWithValue('Failed to delete subcategory');
+    }
   }
 );
 
@@ -49,26 +173,100 @@ const subcategoriesSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
+    setSelectedSubcategory: (state, action) => {
+      state.selected = action.payload;
+    },
+    clearSelectedSubcategory: (state) => {
+      state.selected = null;
+    },
   },
   extraReducers: (builder) => {
     builder
+      // Fetch all subcategories
       .addCase(fetchSubcategories.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(fetchSubcategories.fulfilled, (state, action) => {
         state.loading = false;
-        state.list = action.payload;
+        state.list = action.payload.data || [];
+        state.meta = {
+          count: action.payload.meta?.count ?? (action.payload.data?.length || 0)
+        };
       })
       .addCase(fetchSubcategories.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || 'Failed to fetch subcategories';
+        state.error = action.payload as string || 'Failed to fetch subcategories';
+      })
+      
+      // Fetch subcategory by ID
+      .addCase(fetchSubcategoryById.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchSubcategoryById.fulfilled, (state, action) => {
+        state.loading = false;
+        state.selected = action.payload.data;
+      })
+      .addCase(fetchSubcategoryById.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string || 'Failed to fetch subcategory';
+      })
+      
+      // Create subcategory
+      .addCase(createSubcategory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
       })
       .addCase(createSubcategory.fulfilled, (state, action) => {
-        state.list.push(action.payload);
+        state.loading = false;
+        state.list.push(action.payload.data);
+        state.meta.count = (state.meta.count || 0) + 1;
+      })
+      .addCase(createSubcategory.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string || 'Failed to create subcategory';
+      })
+      
+      // Update subcategory
+      .addCase(updateSubcategory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateSubcategory.fulfilled, (state, action) => {
+        state.loading = false;
+        const index = state.list.findIndex(s => s.id === action.payload.data.id);
+        if (index !== -1) {
+          state.list[index] = action.payload.data;
+        }
+        if (state.selected?.id === action.payload.data.id) {
+          state.selected = action.payload.data;
+        }
+      })
+      .addCase(updateSubcategory.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string || 'Failed to update subcategory';
+      })
+      
+      // Delete subcategory
+      .addCase(deleteSubcategory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteSubcategory.fulfilled, (state, action) => {
+        state.loading = false;
+        state.list = state.list.filter(s => s.id !== action.payload);
+        if (state.selected?.id === action.payload) {
+          state.selected = null;
+        }
+        state.meta.count = Math.max(0, (state.meta.count || 0) - 1);
+      })
+      .addCase(deleteSubcategory.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string || 'Failed to delete subcategory';
       });
   },
 });
 
-export const { clearError } = subcategoriesSlice.actions;
+export const { clearError, setSelectedSubcategory, clearSelectedSubcategory } = subcategoriesSlice.actions;
 export default subcategoriesSlice.reducer;
