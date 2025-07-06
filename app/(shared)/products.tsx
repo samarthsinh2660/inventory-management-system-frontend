@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, Search, Filter, X } from 'lucide-react-native';
+import { Plus, Search, Filter, X, MapPin, Tag, Beaker, ArrowLeft } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
@@ -15,6 +15,12 @@ import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ProductFiltersModal } from '@/components/modals/ProductFiltersModal';
 import { CustomSearchBar } from '@/components/CustomSearchBar';
 import ProductDetailsModal from '../../components/modals/ProductDetailsModal';
+import { LocationsList } from '../../components/product/LocationsList';
+import { SubcategoriesList } from '../../components/product/SubcategoriesList';
+import { FormulasList } from '../../components/product/FormulasList';
+import { CreateLocationModal } from '../../components/modals/CreateLocationModal';
+import { CreateSubcategoryModal } from '../../components/modals/CreateSubcategoryModal';
+import { CreateFormulaModal } from '../../components/modals/CreateFormulaModal';
 
 interface FilterState {
   category: string;
@@ -23,6 +29,8 @@ interface FilterState {
   source_type: string;
   formula_id: number;
 }
+
+type ViewMode = 'products' | 'locations' | 'subcategories' | 'formulas';
 
 export default function Products() {
   const router = useRouter();
@@ -37,6 +45,16 @@ export default function Products() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [showProductDetails, setShowProductDetails] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('products');
+  
+  // Create/Edit Modal States
+  const [showCreateLocation, setShowCreateLocation] = useState(false);
+  const [showCreateSubcategory, setShowCreateSubcategory] = useState(false);
+  const [showCreateFormula, setShowCreateFormula] = useState(false);
+  const [editingLocation, setEditingLocation] = useState<any>(null);
+  const [editingSubcategory, setEditingSubcategory] = useState<any>(null);
+  const [editingFormula, setEditingFormula] = useState<any>(null);
+  
   const [filters, setFilters] = useState<FilterState>({
     category: '',
     subcategory_id: 0,
@@ -103,7 +121,7 @@ export default function Products() {
     setRefreshing(true);
     try {
       await Promise.all([
-        dispatch(fetchProducts({ page: 1, limit: 20 })), // Increased limit to show more products
+        dispatch(fetchProducts({ page: 1, limit: 20 })),
         dispatch(fetchSubcategories()),
         dispatch(fetchLocations()),
         dispatch(fetchFormulas()),
@@ -114,12 +132,52 @@ export default function Products() {
   }, [dispatch]);
 
   const handleProductUpdated = React.useCallback(() => {
-    // Refresh the products list to show updated data
     dispatch(fetchProducts({ page: 1, limit: 50 }));
   }, [dispatch]);
 
+  // Management View Handlers
+  const handleCreateLocation = () => {
+    setEditingLocation(null);
+    setShowCreateLocation(true);
+  };
+
+  const handleEditLocation = (location: any) => {
+    setEditingLocation(location);
+    setShowCreateLocation(true);
+  };
+
+  const handleCreateSubcategory = () => {
+    setEditingSubcategory(null);
+    setShowCreateSubcategory(true);
+  };
+
+  const handleEditSubcategory = (subcategory: any) => {
+    setEditingSubcategory(subcategory);
+    setShowCreateSubcategory(true);
+  };
+
+  const handleCreateFormula = () => {
+    setEditingFormula(null);
+    setShowCreateFormula(true);
+  };
+
+  const handleEditFormula = (formula: any) => {
+    setEditingFormula(formula);
+    setShowCreateFormula(true);
+  };
+
+  const handleModalClose = () => {
+    setShowCreateLocation(false);
+    setShowCreateSubcategory(false);
+    setShowCreateFormula(false);
+    setEditingLocation(null);
+    setEditingSubcategory(null);
+    setEditingFormula(null);
+    // Refresh data after modal closes
+    onRefresh();
+  };
+
   useEffect(() => {
-    // Load products with higher limit initially
     dispatch(fetchProducts({ page: 1, limit: 50 }));
     dispatch(fetchSubcategories());
     dispatch(fetchLocations());
@@ -141,7 +199,6 @@ export default function Products() {
         </View>
         <View style={styles.statusContainer}>
           <CategoryBadge category={item.category} />
-          {/* Stock Status Indicator */}
           <View style={[
             styles.stockIndicator,
             {
@@ -199,7 +256,6 @@ export default function Products() {
             {item.source_type === 'manufacturing' ? 'Manufacturing' : 'Trading'}
           </Text>
         </View>
-        {/* Display formula information if available */}
         {item.formula_name && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Formula:</Text>
@@ -217,6 +273,72 @@ export default function Products() {
     </TouchableOpacity>
   );
 
+  const renderManagementViewButtons = () => (
+    <View style={styles.managementViewContainer}>
+      <Text style={styles.managementViewLabel}>Management Views:</Text>
+      <View style={styles.managementViewButtons}>
+        <TouchableOpacity
+          style={[styles.managementViewButton, viewMode === 'locations' && styles.managementViewButtonActive]}
+          onPress={() => setViewMode('locations')}
+        >
+          <MapPin size={16} color={viewMode === 'locations' ? '#2563eb' : '#6b7280'} />
+          <Text style={[styles.managementViewButtonText, viewMode === 'locations' && styles.managementViewButtonTextActive]}>
+            Locations
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.managementViewButton, viewMode === 'subcategories' && styles.managementViewButtonActive]}
+          onPress={() => setViewMode('subcategories')}
+        >
+          <Tag size={16} color={viewMode === 'subcategories' ? '#2563eb' : '#6b7280'} />
+          <Text style={[styles.managementViewButtonText, viewMode === 'subcategories' && styles.managementViewButtonTextActive]}>
+            Categories
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.managementViewButton, viewMode === 'formulas' && styles.managementViewButtonActive]}
+          onPress={() => setViewMode('formulas')}
+        >
+          <Beaker size={16} color={viewMode === 'formulas' ? '#2563eb' : '#6b7280'} />
+          <Text style={[styles.managementViewButtonText, viewMode === 'formulas' && styles.managementViewButtonTextActive]}>
+            Formulas
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderManagementContent = () => {
+    switch (viewMode) {
+      case 'locations':
+        return (
+          <LocationsList
+            locations={locations}
+            onCreateLocation={handleCreateLocation}
+            onEditLocation={handleEditLocation}
+          />
+        );
+      case 'subcategories':
+        return (
+          <SubcategoriesList
+            subcategories={subcategories}
+            onCreateSubcategory={handleCreateSubcategory}
+            onEditSubcategory={handleEditSubcategory}
+          />
+        );
+      case 'formulas':
+        return (
+          <FormulasList
+            formulas={formulas}
+            onCreateFormula={handleCreateFormula}
+            onEditFormula={handleEditFormula}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
   if (loading && !refreshing) {
     return (
       <SafeAreaView style={styles.container}>
@@ -229,125 +351,148 @@ export default function Products() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <Text style={styles.title}>Products</Text>
-          <Text style={styles.subtitle}>
-            {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} 
-            {activeFiltersCount > 0 && ` (${activeFiltersCount} filter${activeFiltersCount !== 1 ? 's' : ''} applied)`}
-          </Text>
-        </View>
-        <IfMaster>
-          <TouchableOpacity 
-            style={styles.addButton}
-            onPress={() => router.push('/create-product')}
-          >
-            <Plus size={20} color="white" />
-          </TouchableOpacity>
-        </IfMaster>
-      </View>
-
-      <View style={styles.searchContainer}>
-        <CustomSearchBar
-          placeholder="Search products..."
-          value={searchTerm}
-          onChangeText={handleSearChange}
-          onClear={() => setSearchTerm('')}
-        />
-        <TouchableOpacity 
-          style={[styles.filterButton, activeFiltersCount > 0 && styles.filterButtonActive]}
-          onPress={() => setShowFilters(true)}
-        >
-          <Filter size={20} color={activeFiltersCount > 0 ? "#2563eb" : "#6b7280"} />
-          {activeFiltersCount > 0 && (
-            <View style={styles.filterBadge}>
-              <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Quick Filters */}
-      <View style={styles.quickFiltersContainer}>
-        <Text style={styles.quickFiltersLabel}>Quick Filters:</Text>
-        <View style={styles.quickFilters}>
-          <TouchableOpacity
-            style={[
-              styles.quickFilterButton,
-              filters.source_type === 'manufacturing' && styles.quickFilterButtonActive
-            ]}
-            onPress={() => setQuickFilter('manufacturing')}
-          >
-            <Text style={[
-              styles.quickFilterText,
-              filters.source_type === 'manufacturing' && styles.quickFilterTextActive
-            ]}>
-              Manufacturing
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.quickFilterButton,
-              filters.source_type === 'trading' && styles.quickFilterButtonActive
-            ]}
-            onPress={() => setQuickFilter('trading')}
-          >
-            <Text style={[
-              styles.quickFilterText,
-              filters.source_type === 'trading' && styles.quickFilterTextActive
-            ]}>
-              Trading
-            </Text>
-          </TouchableOpacity>
-          {activeFiltersCount > 0 && (
+          {viewMode !== 'products' ? (
             <TouchableOpacity
-              style={styles.clearFiltersButton}
-              onPress={clearAllFilters}
+              style={styles.backButton}
+              onPress={() => setViewMode('products')}
             >
-              <X size={16} color="#ef4444" />
-              <Text style={styles.clearFiltersText}>Clear All</Text>
+              <ArrowLeft size={20} color="#2563eb" />
+              <Text style={styles.backButtonText}>Back to Products</Text>
             </TouchableOpacity>
+          ) : (
+            <>
+              <Text style={styles.title}>Products</Text>
+              <Text style={styles.subtitle}>
+                {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} 
+                {activeFiltersCount > 0 && ` (${activeFiltersCount} filter${activeFiltersCount !== 1 ? 's' : ''} applied)`}
+              </Text>
+            </>
           )}
         </View>
+        {viewMode === 'products' && (
+          <IfMaster>
+            <TouchableOpacity 
+              style={styles.addButton}
+              onPress={() => router.push('/create-product')}
+            >
+              <Plus size={20} color="white" />
+            </TouchableOpacity>
+          </IfMaster>
+        )}
       </View>
 
-      <FlatList
-        data={filteredProducts}
-        renderItem={renderProduct}
-        keyExtractor={(item) => item.id.toString()}
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {searchTerm || activeFiltersCount > 0 ? 'No products match your search' : 'No products found'}
-            </Text>
-            {(searchTerm || activeFiltersCount > 0) && (
-              <TouchableOpacity 
-                style={styles.clearSearchButton}
-                onPress={() => {
-                  setSearchTerm('');
-                  clearAllFilters();
-                }}
+      {viewMode === 'products' ? (
+        <>
+          <View style={styles.searchContainer}>
+            <CustomSearchBar
+              placeholder="Search products..."
+              value={searchTerm}
+              onChangeText={handleSearChange}
+              onClear={() => setSearchTerm('')}
+            />
+            <TouchableOpacity 
+              style={[styles.filterButton, activeFiltersCount > 0 && styles.filterButtonActive]}
+              onPress={() => setShowFilters(true)}
+            >
+              <Filter size={20} color={activeFiltersCount > 0 ? "#2563eb" : "#6b7280"} />
+              {activeFiltersCount > 0 && (
+                <View style={styles.filterBadge}>
+                  <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.quickFiltersContainer}>
+            <Text style={styles.quickFiltersLabel}>Quick Filters:</Text>
+            <View style={styles.quickFilters}>
+              <TouchableOpacity
+                style={[
+                  styles.quickFilterButton,
+                  filters.source_type === 'manufacturing' && styles.quickFilterButtonActive
+                ]}
+                onPress={() => setQuickFilter('manufacturing')}
               >
-                <Text style={styles.clearSearchButtonText}>Clear Search & Filters</Text>
+                <Text style={[
+                  styles.quickFilterText,
+                  filters.source_type === 'manufacturing' && styles.quickFilterTextActive
+                ]}>
+                  Manufacturing
+                </Text>
               </TouchableOpacity>
-            )}
-            <IfMaster>
-              {!searchTerm && activeFiltersCount === 0 && (
-                <TouchableOpacity 
-                  style={styles.createFirstButton}
-                  onPress={() => router.push('/create-product')}
+              <TouchableOpacity
+                style={[
+                  styles.quickFilterButton,
+                  filters.source_type === 'trading' && styles.quickFilterButtonActive
+                ]}
+                onPress={() => setQuickFilter('trading')}
+              >
+                <Text style={[
+                  styles.quickFilterText,
+                  filters.source_type === 'trading' && styles.quickFilterTextActive
+                ]}>
+                  Trading
+                </Text>
+              </TouchableOpacity>
+              {activeFiltersCount > 0 && (
+                <TouchableOpacity
+                  style={styles.clearFiltersButton}
+                  onPress={clearAllFilters}
                 >
-                  <Text style={styles.createFirstButtonText}>Create First Product</Text>
+                  <X size={16} color="#ef4444" />
+                  <Text style={styles.clearFiltersText}>Clear All</Text>
                 </TouchableOpacity>
               )}
-            </IfMaster>
+            </View>
           </View>
-        }
-      />
+
+          {renderManagementViewButtons()}
+
+          <FlatList
+            data={filteredProducts}
+            renderItem={renderProduct}
+            keyExtractor={(item) => item.id.toString()}
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>
+                  {searchTerm || activeFiltersCount > 0 ? 'No products match your search' : 'No products found'}
+                </Text>
+                {(searchTerm || activeFiltersCount > 0) && (
+                  <TouchableOpacity 
+                    style={styles.clearSearchButton}
+                    onPress={() => {
+                      setSearchTerm('');
+                      clearAllFilters();
+                    }}
+                  >
+                    <Text style={styles.clearSearchButtonText}>Clear Search & Filters</Text>
+                  </TouchableOpacity>
+                )}
+                <IfMaster>
+                  {!searchTerm && activeFiltersCount === 0 && (
+                    <TouchableOpacity 
+                      style={styles.createFirstButton}
+                      onPress={() => router.push('/create-product')}
+                    >
+                      <Text style={styles.createFirstButtonText}>Create First Product</Text>
+                    </TouchableOpacity>
+                  )}
+                </IfMaster>
+              </View>
+            }
+          />
+        </>
+      ) : (
+        <View style={styles.managementContentContainer}>
+          {renderManagementContent()}
+        </View>
+      )}
 
       <ProductFiltersModal
         isVisible={showFilters}
@@ -367,6 +512,24 @@ export default function Products() {
         }}
         product={selectedProduct}
         onProductUpdated={handleProductUpdated}
+      />
+
+      <CreateLocationModal
+        isVisible={showCreateLocation}
+        onClose={handleModalClose}
+        editingLocation={editingLocation}
+      />
+
+      <CreateSubcategoryModal
+        isVisible={showCreateSubcategory}
+        onClose={handleModalClose}
+        editingSubcategory={editingSubcategory}
+      />
+
+      <CreateFormulaModal
+        isVisible={showCreateFormula}
+        onClose={handleModalClose}
+        editingFormula={editingFormula}
       />
     </SafeAreaView>
   );
@@ -400,6 +563,16 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginTop: 2,
   },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2563eb',
+  },
   addButton: {
     backgroundColor: '#2563eb',
     borderRadius: 20,
@@ -411,60 +584,24 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    marginBottom: 12,
-    marginTop: 16,
+    paddingVertical: 16,
     gap: 12,
-  },
-  searchBar: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: 'white',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchBarContainer: {
-    backgroundColor: 'transparent',
-    borderTopWidth: 0,
-    borderBottomWidth: 0,
-    padding: 0,
-    flex: 1,
-  },
-  searchBarInput: {
-    backgroundColor: 'transparent',
-    borderBottomWidth: 0,
-    height: 40,
-  },
-  searchBarText: {
-    fontSize: 16,
-    color: '#1f2937',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
   },
   filterButton: {
-    width: 48,
-    height: 48,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: 'white',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
     position: 'relative',
   },
   filterButtonActive: {
-    backgroundColor: '#eff6ff',
-    borderWidth: 1,
-    borderColor: '#2563eb',
+    backgroundColor: '#dbeafe',
+    borderColor: '#93c5fd',
   },
   filterBadge: {
     position: 'absolute',
@@ -534,6 +671,68 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     color: '#ef4444',
+  },
+  managementViewContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  managementViewLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  managementViewButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  managementViewButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    gap: 6,
+  },
+  managementViewButtonActive: {
+    backgroundColor: '#dbeafe',
+    borderColor: '#2563eb',
+  },
+  managementViewButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  managementViewButtonTextActive: {
+    color: '#2563eb',
+    fontWeight: '600',
+  },
+  managementViewBadge: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  managementViewBadgeActive: {
+    backgroundColor: '#2563eb',
+  },
+  managementViewBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  managementViewBadgeTextActive: {
+    color: 'white',
+  },
+  managementContentContainer: {
+    flex: 1,
   },
   list: {
     flex: 1,

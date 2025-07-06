@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
-import { Flask, Edit2, Trash2, Plus } from 'lucide-react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { Beaker, Edit2, Trash2, Plus, Package } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { deleteFormula } from '../../store/slices/formulasSlice';
@@ -45,12 +45,22 @@ export const FormulasList: React.FC<FormulasListProps> = ({
     );
   };
 
+  const renderComponentItem = ({ item }: { item: any }) => (
+    <View style={styles.componentItem}>
+      <View style={styles.componentHeader}>
+        <Package size={14} color="#6b7280" />
+        <Text style={styles.componentName} numberOfLines={1}>{item.component_name}</Text>
+      </View>
+      <Text style={styles.componentQuantity}>{item.quantity} units</Text>
+    </View>
+  );
+
   const renderFormulaItem = ({ item }: { item: any }) => (
     <View style={styles.itemCard}>
       <View style={styles.itemHeader}>
         <View style={styles.itemInfo}>
           <View style={styles.itemTitleRow}>
-            <Flask size={16} color="#6b7280" />
+            <Beaker size={16} color="#6b7280" />
             <Text style={styles.itemName}>{item.name}</Text>
           </View>
           {item.description && (
@@ -97,6 +107,35 @@ export const FormulasList: React.FC<FormulasListProps> = ({
         )}
       </View>
       
+      {/* Components Section */}
+      {item.components && item.components.length > 0 && (
+        <View style={styles.componentsSection}>
+          <View style={styles.componentsSectionHeader}>
+            <Text style={styles.componentsSectionTitle}>Components ({item.components.length})</Text>
+          </View>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={styles.componentsScrollView}
+            contentContainerStyle={styles.componentsScrollContent}
+          >
+            {item.components.map((component: any, index: number) => (
+              <View key={index} style={styles.componentItem}>
+                <View style={styles.componentHeader}>
+                  <Package size={14} color="#6b7280" />
+                  <Text style={styles.componentName} numberOfLines={1}>
+                    {component.component_name}
+                  </Text>
+                </View>
+                <Text style={styles.componentQuantity}>
+                  {component.quantity} units
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+      
       {item.products_count !== undefined && (
         <View style={styles.itemFooter}>
           <Text style={styles.itemCount}>
@@ -130,7 +169,7 @@ export const FormulasList: React.FC<FormulasListProps> = ({
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Flask size={48} color="#d1d5db" />
+            <Beaker size={48} color="#d1d5db" />
             <Text style={styles.emptyText}>No formulas found</Text>
             <IfMaster>
               <TouchableOpacity 
@@ -256,6 +295,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1f2937',
     fontWeight: '600',
+  },
+  componentsSection: {
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  componentsSectionHeader: {
+    marginBottom: 8,
+  },
+  componentsSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  componentsScrollView: {
+    flexGrow: 0,
+  },
+  componentsScrollContent: {
+    paddingRight: 16,
+  },
+  componentItem: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    padding: 12,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    minWidth: 120,
+    maxWidth: 140,
+  },
+  componentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  componentName: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    flex: 1,
+  },
+  componentQuantity: {
+    fontSize: 11,
+    color: '#6b7280',
+    fontWeight: '500',
   },
   itemFooter: {
     paddingTop: 8,

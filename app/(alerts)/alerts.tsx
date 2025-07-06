@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, RefreshCw } from 'lucide-react-native';
+import { TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, RefreshCw, ArrowLeft } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { fetchNotifications, resolveAlert, checkAlerts, Notification } from '../../store/slices/alertsSlice';
@@ -9,6 +10,7 @@ import { LoadingSpinner } from '../../components/LoadingSpinner';
 import Toast from 'react-native-toast-message';
 
 export default function Alerts() {
+  const router = useRouter();
   const dispatch = useAppDispatch();
   const { notifications, loading } = useAppSelector(state => state.alerts);
   const unresolvedCount = useAppSelector(state => 
@@ -119,7 +121,13 @@ export default function Alerts() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <View>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <ArrowLeft size={20} color="#2563eb" />
+        </TouchableOpacity>
+        <View style={styles.headerContent}>
           <Text style={styles.title}>Stock Notifications</Text>
           <Text style={styles.subtitle}>
             {unresolvedCount} unread notification{unresolvedCount !== 1 ? 's' : ''}
@@ -130,7 +138,7 @@ export default function Alerts() {
           onPress={handleRecheckAlerts}
         >
           <RefreshCw size={20} color="#2563eb" />
-          <Text style={styles.recheckButtonText}>Check Alerts</Text>
+          <Text style={styles.recheckButtonText}>Check</Text>
         </TouchableOpacity>
       </View>
 
@@ -172,6 +180,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+  },
+  backButton: {
+    padding: 8,
+    marginLeft: -8,
+  },
+  headerContent: {
+    flex: 1,
+    marginLeft: 12,
   },
   title: {
     fontSize: 24,

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import { Package, MapPin, Tag, Flask } from 'lucide-react-native';
+import { Package, MapPin, Tag, Beaker } from 'lucide-react-native';
 import { LocationsList } from './LocationsList';
 import { SubcategoriesList } from './SubcategoriesList';
 import { FormulasList } from './FormulasList';
@@ -41,25 +41,21 @@ export const ManagementTabs: React.FC<ManagementTabsProps> = ({
       id: 'products' as TabType, 
       title: 'Products', 
       icon: Package, 
-      count: products.length 
     },
     { 
       id: 'locations' as TabType, 
       title: 'Locations', 
       icon: MapPin, 
-      count: locations.length 
     },
     { 
       id: 'subcategories' as TabType, 
       title: 'Categories', 
       icon: Tag, 
-      count: subcategories.length 
     },
     { 
       id: 'formulas' as TabType, 
       title: 'Formulas', 
-      icon: Flask, 
-      count: formulas.length 
+      icon: Beaker, 
     },
   ];
 
@@ -135,7 +131,6 @@ export const ManagementTabs: React.FC<ManagementTabsProps> = ({
                   styles.countText,
                   isActive && styles.activeCountText
                 ]}>
-                  {tab.count}
                 </Text>
               </View>
             </TouchableOpacity>

@@ -207,11 +207,11 @@ export default function InventoryScreen() {
           </View>
           <View style={styles.stockItem}>
             <Text style={styles.stockLabel}>Price/Unit</Text>
-            <Text style={styles.stockValue}>₹{(pricePerUnit || 0).toFixed(2)}</Text>
+            <Text style={styles.stockValue}>₹{(parseFloat(pricePerUnit?.toString()) || 0).toFixed(2)}</Text>
           </View>
           <View style={styles.stockItem}>
             <Text style={styles.stockLabel}>Total Value</Text>
-            <Text style={styles.stockValue}>₹{(totalPrice || 0).toFixed(2)}</Text>
+            <Text style={styles.stockValue}>₹{(parseFloat(totalPrice?.toString()) || 0).toFixed(2)}</Text>
           </View>
         </View>
         <Text style={styles.stockLocation}>{stockInfo?.location_name || 'Unknown Location'}</Text>

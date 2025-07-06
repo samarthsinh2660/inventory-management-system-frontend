@@ -6,13 +6,14 @@ import * as Yup from 'yup';
 import { TextInput, Button } from 'react-native-paper';
 import { X } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
-import { createSubcategory } from '../../store/slices/subcategoriesSlice';
+import { createSubcategory, updateSubcategory } from '../../store/slices/subcategoriesSlice';
 import Toast from 'react-native-toast-message';
 
 interface CreateSubcategoryModalProps {
   isVisible: boolean;
   onClose: () => void;
   onSuccess?: (subcategory: any) => void;
+  editingSubcategory?: any;
 }
 
 const validationSchema = Yup.object({
@@ -24,42 +25,70 @@ export const CreateSubcategoryModal: React.FC<CreateSubcategoryModalProps> = ({
   isVisible,
   onClose,
   onSuccess,
+  editingSubcategory,
 }) => {
   const dispatch = useAppDispatch();
+  const isEditing = !!editingSubcategory;
 
   const handleSubmit = async (values: { name: string; description: string }) => {
     try {
-      const result = await dispatch(createSubcategory(values)).unwrap();
-      Toast.show({
-        type: 'success',
-        text1: 'Success',
-        text2: 'Subcategory created successfully',
-      });
+      let result;
+      if (isEditing) {
+        result = await dispatch(updateSubcategory({
+          id: editingSubcategory.id,
+          data: values
+        })).unwrap();
+        Toast.show({
+          type: 'success',
+          text1: 'Success',
+          text2: 'Subcategory updated successfully',
+        });
+      } else {
+        result = await dispatch(createSubcategory(values)).unwrap();
+        Toast.show({
+          type: 'success',
+          text1: 'Success',
+          text2: 'Subcategory created successfully',
+        });
+      }
       onSuccess?.(result);
       onClose();
     } catch (error: any) {
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: error.message || 'Failed to create subcategory',
+        text2: error.message || `Failed to ${isEditing ? 'update' : 'create'} subcategory`,
       });
     }
+  };
+
+  const getInitialValues = () => {
+    if (isEditing && editingSubcategory) {
+      return {
+        name: editingSubcategory.name || '',
+        description: editingSubcategory.description || '',
+      };
+    }
+    return { name: '', description: '' };
   };
 
   return (
     <Modal isVisible={isVisible} onBackdropPress={onClose}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Create Subcategory</Text>
+          <Text style={styles.title}>
+            {isEditing ? 'Edit Subcategory' : 'Create Subcategory'}
+          </Text>
           <TouchableOpacity onPress={onClose}>
             <X size={24} color="#6b7280" />
           </TouchableOpacity>
         </View>
 
         <Formik
-          initialValues={{ name: '', description: '' }}
+          initialValues={getInitialValues()}
           validationSchema={validationSchema}
           onSubmit={handleSubmit}
+          enableReinitialize={true}
         >
           {({ values, errors, touched, handleChange, handleBlur, handleSubmit, isSubmitting }) => (
             <View style={styles.form}>
@@ -72,7 +101,7 @@ export const CreateSubcategoryModal: React.FC<CreateSubcategoryModalProps> = ({
                 style={styles.input}
               />
               {touched.name && errors.name && (
-                <Text style={styles.errorText}>{errors.name}</Text>
+                <Text style={styles.errorText}>{String(errors.name)}</Text>
               )}
 
               <TextInput
@@ -99,7 +128,7 @@ export const CreateSubcategoryModal: React.FC<CreateSubcategoryModalProps> = ({
                   loading={isSubmitting}
                   style={styles.button}
                 >
-                  Create
+                  {isEditing ? 'Update' : 'Create'}
                 </Button>
               </View>
             </View>

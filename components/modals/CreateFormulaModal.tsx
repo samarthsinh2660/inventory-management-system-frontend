@@ -8,13 +8,14 @@ import { X, Plus, Minus } from 'lucide-react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
-import { createFormula, CreateFormulaData } from '../../store/slices/formulasSlice';
+import { createFormula, updateFormula, CreateFormulaData } from '../../store/slices/formulasSlice';
 import Toast from 'react-native-toast-message';
 
 interface CreateFormulaModalProps {
   isVisible: boolean;
   onClose: () => void;
   onSuccess?: (formula: any) => void;
+  editingFormula?: any;
 }
 
 const validationSchema = Yup.object({
@@ -34,9 +35,11 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
   isVisible,
   onClose,
   onSuccess,
+  editingFormula,
 }) => {
   const dispatch = useAppDispatch();
   const products = useAppSelector(state => state.products.list);
+  const isEditing = !!editingFormula;
 
   const handleSubmit = async (values: {
     name: string;
@@ -44,7 +47,6 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
     components: { component_id: number; quantity: number }[];
   }) => {
     try {
-      // Format data according to API requirements
       const formulaData: CreateFormulaData = {
         name: values.name,
         description: values.description || null,
@@ -54,41 +56,73 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
         })),
       };
 
-      const result = await dispatch(createFormula(formulaData)).unwrap();
-      Toast.show({
-        type: 'success',
-        text1: 'Success',
-        text2: 'Formula created successfully',
-      });
+      let result;
+      if (isEditing) {
+        result = await dispatch(updateFormula({
+          id: editingFormula.id,
+          data: formulaData
+        })).unwrap();
+        Toast.show({
+          type: 'success',
+          text1: 'Success',
+          text2: 'Formula updated successfully',
+        });
+      } else {
+        result = await dispatch(createFormula(formulaData)).unwrap();
+        Toast.show({
+          type: 'success',
+          text1: 'Success',
+          text2: 'Formula created successfully',
+        });
+      }
       onSuccess?.(result);
       onClose();
     } catch (error: any) {
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: error.message || 'Failed to create formula',
+        text2: error.message || `Failed to ${isEditing ? 'update' : 'create'} formula`,
       });
     }
+  };
+
+  const getInitialValues = () => {
+    if (isEditing && editingFormula) {
+      return {
+        name: editingFormula.name || '',
+        description: editingFormula.description || '',
+        components: editingFormula.components && editingFormula.components.length > 0 
+          ? editingFormula.components.map((comp: any, index: number) => ({
+              component_id: comp.component_id || 0,
+              quantity: comp.quantity || 0,
+            }))
+          : [{ component_id: 0, quantity: 0 }],
+      };
+    }
+    return {
+      name: '',
+      description: '',
+      components: [{ component_id: 0, quantity: 0 }],
+    };
   };
 
   return (
     <Modal isVisible={isVisible} onBackdropPress={onClose}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Create Formula</Text>
+          <Text style={styles.title}>
+            {isEditing ? 'Edit Formula' : 'Create Formula'}
+          </Text>
           <TouchableOpacity onPress={onClose}>
             <X size={24} color="#6b7280" />
           </TouchableOpacity>
         </View>
 
         <Formik
-          initialValues={{
-            name: '',
-            description: '',
-            components: [{ component_id: 0, quantity: 0 }],
-          }}
+          initialValues={getInitialValues()}
           validationSchema={validationSchema}
           onSubmit={handleSubmit}
+          enableReinitialize={true}
         >
           {({ values, errors, touched, handleChange, handleBlur, handleSubmit, isSubmitting, setFieldValue }) => (
             <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
@@ -101,7 +135,7 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
                 style={styles.input}
               />
               {touched.name && errors.name && (
-                <Text style={styles.errorText}>{errors.name}</Text>
+                <Text style={styles.errorText}>{String(errors.name)}</Text>
               )}
 
               <TextInput
@@ -119,7 +153,7 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
               <FieldArray name="components">
                 {({ push, remove }) => (
                   <View>
-                    {values.components.map((component, index) => (
+                    {values.components.map((component: any, index: number) => (
                       <View key={index} style={styles.componentRow}>
                         <View style={styles.pickerContainer}>
                           <Text style={styles.label}>Product*</Text>
@@ -141,14 +175,14 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
                             </Picker>
                           </View>
                           {touched.components && 
-                           touched.components[index] && 
+                           (touched.components as any[])[index] && 
                            errors.components && 
                            Array.isArray(errors.components) && 
                            errors.components[index] && 
                            typeof errors.components[index] === 'object' && 
                            'component_id' in errors.components[index] && (
                             <Text style={styles.errorText}>
-                              {errors.components[index].component_id}
+                              {String((errors.components[index] as any).component_id)}
                             </Text>
                           )}
                         </View>
@@ -164,14 +198,14 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
                             style={styles.quantityInput}
                           />
                           {touched.components && 
-                           touched.components[index] && 
+                           (touched.components as any[])[index] && 
                            errors.components && 
                            Array.isArray(errors.components) && 
                            errors.components[index] && 
                            typeof errors.components[index] === 'object' && 
                            'quantity' in errors.components[index] && (
                             <Text style={styles.errorText}>
-                              {errors.components[index].quantity}
+                              {String((errors.components[index] as any).quantity)}
                             </Text>
                           )}
                         </View>
@@ -211,7 +245,7 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
                   loading={isSubmitting}
                   style={styles.button}
                 >
-                  Create
+                  {isEditing ? 'Update' : 'Create'}
                 </Button>
               </View>
             </ScrollView>
@@ -278,6 +312,7 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
     borderRadius: 4,
     backgroundColor: 'white',
+    minHeight: 56,
   },
   quantityContainer: {
     flex: 1,

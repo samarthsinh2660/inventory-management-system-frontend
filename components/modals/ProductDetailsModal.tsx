@@ -1,14 +1,36 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Alert } from 'react-native';
-import { TextInput, Button, Chip } from 'react-native-paper';
-import { Formik } from 'formik';
-import * as Yup from 'yup';
-import { X, Edit, Trash2, Package, DollarSign, Ruler, AlertTriangle, Check, Beaker } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
+import { TextInput, Button } from 'react-native-paper';
+import {
+  X,
+  Package,
+  DollarSign,
+  Ruler,
+  AlertTriangle,
+  Edit,
+  Trash2,
+  Check,
+  Beaker,
+} from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { updateProduct, deleteProduct } from '../../store/slices/productsSlice';
-import { Picker } from '@react-native-picker/picker';
+import { fetchFormulaById } from '../../store/slices/formulasSlice';
+import { Formik } from 'formik';
+import * as Yup from 'yup';
 import Toast from 'react-native-toast-message';
+import { Picker } from '@react-native-picker/picker';
+import { IfMaster } from '../IfMaster';
 
 interface ProductDetailsModalProps {
   visible: boolean;
@@ -20,87 +42,83 @@ interface ProductDetailsModalProps {
 const validationSchema = Yup.object({
   name: Yup.string().required('Product name is required'),
   price: Yup.number().min(0, 'Price must be positive').required('Price is required'),
-  min_stock_threshold: Yup.number().min(0, 'Threshold must be positive').required('Minimum stock threshold is required'),
+  min_stock_threshold: Yup.number().min(0, 'Minimum stock must be positive').required('Minimum stock is required'),
   unit: Yup.string().required('Unit is required'),
-  category: Yup.string().oneOf(['raw', 'semi', 'finished']).required('Category is required'),
-  subcategory_id: Yup.number().min(1, 'Subcategory is required').required('Subcategory is required'),
-  location_id: Yup.number().min(1, 'Location is required').required('Location is required'),
+  category: Yup.string().required('Category is required'),
+  subcategory_id: Yup.number().min(1, 'Subcategory is required'),
+  location_id: Yup.number().min(1, 'Location is required'),
   source_type: Yup.string().required('Source type is required'),
-  product_formula_id: Yup.number().nullable(),
 });
 
 export default function ProductDetailsModal({ visible, onClose, product, onProductUpdated }: ProductDetailsModalProps) {
   const dispatch = useAppDispatch();
-  const user = useAppSelector(state => state.auth.user);
+  const [editMode, setEditMode] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [productFormula, setProductFormula] = useState<any>(null);
+
   const subcategories = useAppSelector(state => state.subcategories.list || []);
   const locations = useAppSelector(state => state.locations.list || []);
   const formulas = useAppSelector(state => state.formulas.list || []);
-  const [editMode, setEditMode] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const user = useAppSelector(state => state.auth.user);
 
   const isMaster = user?.role === 'master';
 
-  // Get detailed formula information
-  const productFormula = formulas.find(formula => formula.id === product?.product_formula_id);
-
-  // Reset edit mode when modal is closed or opened
-  React.useEffect(() => {
+  useEffect(() => {
     if (visible) {
       setEditMode(false);
+      // Fetch formula details if product has a formula
+      if (product?.product_formula_id) {
+        dispatch(fetchFormulaById(product.product_formula_id))
+          .unwrap()
+          .then((response) => {
+            setProductFormula(response.data);
+          })
+          .catch(() => {
+            setProductFormula(null);
+          });
+      } else {
+        setProductFormula(null);
+      }
     }
-  }, [visible]);
+  }, [visible, product, dispatch]);
 
-  if (!product) return null;
-
-  // Custom close handler to ensure edit mode is reset
   const handleClose = () => {
     setEditMode(false);
-    setLoading(false);
+    setProductFormula(null);
     onClose();
   };
 
-  // Helper function to get selected item name
   const getSelectedItemName = (items: any[], selectedId: number) => {
-    const item = items.find(item => item.id === selectedId);
-    return item ? item.name : null;
+    if (!items || items.length === 0) return 'None';
+    const item = items.find(item => item?.id === selectedId);
+    return item?.name || 'None';
   };
 
   const handleEdit = async (values: any) => {
-    setLoading(true);
     try {
-      // Create update object with only changed fields
-      const updateData: any = {};
-      
-      if (values.name !== product.name) updateData.name = values.name;
-      if (parseFloat(values.price) !== parseFloat(product.price)) updateData.price = parseFloat(values.price);
-      if (parseInt(values.min_stock_threshold) !== product.min_stock_threshold) updateData.min_stock_threshold = parseInt(values.min_stock_threshold);
-      if (values.unit !== product.unit) updateData.unit = values.unit;
-      if (values.category !== product.category) updateData.category = values.category;
-      if (parseInt(values.subcategory_id) !== product.subcategory_id) updateData.subcategory_id = parseInt(values.subcategory_id);
-      if (parseInt(values.location_id) !== product.location_id) updateData.location_id = parseInt(values.location_id);
-      if (values.source_type !== product.source_type) updateData.source_type = values.source_type;
-      if (values.product_formula_id !== (product.product_formula_id || 0)) {
-        updateData.product_formula_id = values.product_formula_id === 0 ? null : parseInt(values.product_formula_id);
-      }
+      setLoading(true);
+      const updateData = {
+        ...values,
+        price: parseFloat(values.price),
+        min_stock_threshold: parseInt(values.min_stock_threshold),
+        subcategory_id: parseInt(values.subcategory_id),
+        location_id: parseInt(values.location_id),
+        product_formula_id: values.product_formula_id === '0' ? null : parseInt(values.product_formula_id),
+      };
 
-      // Only send update if there are changes
-      if (Object.keys(updateData).length > 0) {
-        await dispatch(updateProduct({ id: product.id, data: updateData })).unwrap();
-        Toast.show({
-          type: 'success',
-          text1: 'Success',
-          text2: 'Product updated successfully',
-        });
-        setEditMode(false);
-        // Trigger refresh of product data
-        onProductUpdated?.();
-      } else {
-        Toast.show({
-          type: 'info',
-          text1: 'No Changes',
-          text2: 'No changes were made to update',
-        });
-      }
+             await dispatch(updateProduct({
+         id: product.id,
+         data: updateData
+       })).unwrap();
+
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Product updated successfully',
+      });
+
+      setEditMode(false);
+      onProductUpdated?.();
     } catch (error: any) {
       Toast.show({
         type: 'error',
@@ -115,40 +133,48 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
   const handleDelete = () => {
     Alert.alert(
       'Delete Product',
-      `Are you sure you want to delete "${product.name}"? This action cannot be undone.`,
+      `Are you sure you want to delete "${product?.name || 'this product'}"? This action cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            setLoading(true);
             try {
+              setLoading(true);
               await dispatch(deleteProduct(product.id)).unwrap();
               Toast.show({
                 type: 'success',
                 text1: 'Success',
                 text2: 'Product deleted successfully',
               });
+              onProductUpdated?.();
               handleClose();
             } catch (error: any) {
               Toast.show({
                 type: 'error',
-                text1: 'Cannot Delete',
-                text2: error.message || 'Product is being used and cannot be deleted',
+                text1: 'Error',
+                text2: error.message || 'Failed to delete product',
               });
             } finally {
               setLoading(false);
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
 
+  if (!product) {
+    return null;
+  }
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={styles.container}>
+      <KeyboardAvoidingView 
+        style={styles.container} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>
             {editMode ? 'Edit Product' : 'Product Details'}
@@ -158,7 +184,11 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.content} 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={editMode ? styles.scrollContentWithButtons : styles.scrollContent}
+        >
           {!editMode ? (
             <View style={styles.detailsContainer}>
               <View style={styles.productHeader}>
@@ -241,11 +271,11 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                   {productFormula.components && productFormula.components.length > 0 && (
                     <View style={styles.componentsSection}>
                       <Text style={styles.componentsTitle}>Components Required:</Text>
-                      {productFormula.components.map((component, index) => (
-                        <View key={component.id || index} style={styles.componentItem}>
+                      {productFormula.components.map((component: any, index: number) => (
+                        <View key={component?.id || index} style={styles.componentItem}>
                           <View style={styles.componentDot} />
-                          <Text style={styles.componentName}>{component.component_name}</Text>
-                          <Text style={styles.componentQuantity}>{component.quantity} units</Text>
+                          <Text style={styles.componentName}>{component?.component_name || 'Unknown Component'}</Text>
+                          <Text style={styles.componentQuantity}>{component?.quantity || 0} units</Text>
                         </View>
                       ))}
                     </View>
@@ -352,17 +382,19 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                           onValueChange={(value) => setFieldValue('category', value)}
                         >
                           <Picker.Item label="Raw Material" value="raw" />
-                          <Picker.Item label="Semi-Finished" value="semi" />
+                          <Picker.Item label="Semi-Finished" value="semi-finished" />
                           <Picker.Item label="Finished Product" value="finished" />
                         </Picker>
                       </View>
-                      <View style={styles.selectionIndicator}>
-                        <Check size={16} color="#10b981" />
-                        <Text style={styles.selectedStatus}>
-                          {values.category === 'raw' ? 'Raw Material' : 
-                           values.category === 'semi' ? 'Semi-Finished' : 'Finished Product'} selected
-                        </Text>
-                      </View>
+                      {values.category && (
+                        <View style={styles.selectionIndicator}>
+                          <Check size={16} color="#10b981" />
+                          <Text style={styles.selectedStatus}>
+                            {values.category === 'raw' ? 'Raw Material' : 
+                             values.category === 'semi-finished' ? 'Semi-Finished' : 'Finished Product'} selected
+                          </Text>
+                        </View>
+                      )}
                     </View>
 
                     <View style={styles.pickerContainer}>
@@ -376,12 +408,14 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                           <Picker.Item label="Manufacturing" value="manufacturing" />
                         </Picker>
                       </View>
-                      <View style={styles.selectionIndicator}>
-                        <Check size={16} color="#10b981" />
-                        <Text style={styles.selectedStatus}>
-                          {values.source_type === 'trading' ? 'Trading' : 'Manufacturing'} selected
-                        </Text>
-                      </View>
+                      {values.source_type && (
+                        <View style={styles.selectionIndicator}>
+                          <Check size={16} color="#10b981" />
+                          <Text style={styles.selectedStatus}>
+                            {values.source_type === 'trading' ? 'Trading' : 'Manufacturing'} selected
+                          </Text>
+                        </View>
+                      )}
                     </View>
                   </View>
 
@@ -396,11 +430,11 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                           onValueChange={(value) => setFieldValue('subcategory_id', value)}
                         >
                           <Picker.Item label="Select Subcategory" value="0" />
-                          {subcategories.map(subcategory => (
-                            <Picker.Item 
-                              key={subcategory.id} 
-                              label={subcategory.name} 
-                              value={subcategory.id.toString()} 
+                          {subcategories?.map((subcategory) => (
+                            <Picker.Item
+                              key={subcategory.id}
+                              label={subcategory.name}
+                              value={subcategory.id.toString()}
                             />
                           ))}
                         </Picker>
@@ -415,9 +449,6 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                       ) : (
                         <Text style={styles.unselectedStatus}>No subcategory selected</Text>
                       )}
-                      {touched.subcategory_id && errors.subcategory_id && (
-                        <Text style={styles.errorText}>{String(errors.subcategory_id)}</Text>
-                      )}
                     </View>
 
                     <View style={styles.pickerContainer}>
@@ -428,11 +459,11 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                           onValueChange={(value) => setFieldValue('location_id', value)}
                         >
                           <Picker.Item label="Select Location" value="0" />
-                          {locations.map(location => (
-                            <Picker.Item 
-                              key={location.id} 
-                              label={location.name} 
-                              value={location.id.toString()} 
+                          {locations?.map((location) => (
+                            <Picker.Item
+                              key={location.id}
+                              label={location.name}
+                              value={location.id.toString()}
                             />
                           ))}
                         </Picker>
@@ -446,9 +477,6 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                         </View>
                       ) : (
                         <Text style={styles.unselectedStatus}>No location selected</Text>
-                      )}
-                      {touched.location_id && errors.location_id && (
-                        <Text style={styles.errorText}>{String(errors.location_id)}</Text>
                       )}
                     </View>
                   </View>
@@ -474,18 +502,18 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                     <Text style={styles.sectionTitle}>Manufacturing Formula</Text>
                     
                     <View style={styles.pickerContainer}>
-                      <Text style={styles.label}>Product Formula (Optional for Raw Materials)</Text>
+                      <Text style={styles.label}>Formula (Optional)</Text>
                       <View style={[styles.picker, parseInt(values.product_formula_id) > 0 && styles.selectedPicker]}>
                         <Picker
                           selectedValue={values.product_formula_id}
                           onValueChange={(value) => setFieldValue('product_formula_id', value)}
                         >
                           <Picker.Item label="No Formula" value="0" />
-                          {formulas.map(formula => (
-                            <Picker.Item 
-                              key={formula.id} 
-                              label={formula.name} 
-                              value={formula.id.toString()} 
+                          {formulas?.map((formula) => (
+                            <Picker.Item
+                              key={formula.id}
+                              label={formula.name}
+                              value={formula.id.toString()}
                             />
                           ))}
                         </Picker>
@@ -502,30 +530,53 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                       )}
                     </View>
                   </View>
-
-                  <View style={styles.formButtons}>
-                    <Button
-                      mode="outlined"
-                      onPress={() => setEditMode(false)}
-                      style={styles.cancelButton}
-                      disabled={loading}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      mode="contained"
-                      onPress={() => handleSubmit()}
-                      style={styles.saveButton}
-                      loading={loading}
-                    >
-                      Save Changes
-                    </Button>
-                  </View>
                 </View>
               )}
             </Formik>
           )}
         </ScrollView>
+
+        {/* Form Buttons - Fixed at bottom when editing */}
+        {editMode && (
+          <View style={styles.formButtonsContainer}>
+            <Formik
+              initialValues={{
+                name: product.name || '',
+                price: product.price?.toString() || '',
+                min_stock_threshold: product.min_stock_threshold?.toString() || '',
+                unit: product.unit || '',
+                category: product.category || 'raw',
+                subcategory_id: product.subcategory_id?.toString() || '0',
+                location_id: product.location_id?.toString() || '0',
+                source_type: product.source_type || 'trading',
+                product_formula_id: product.product_formula_id?.toString() || '0',
+              }}
+              validationSchema={validationSchema}
+              onSubmit={handleEdit}
+            >
+              {({ handleSubmit }) => (
+                <View style={styles.formButtons}>
+                  <Button
+                    mode="outlined"
+                    onPress={() => setEditMode(false)}
+                    style={styles.cancelButton}
+                    disabled={loading}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    mode="contained"
+                    onPress={() => handleSubmit()}
+                    style={styles.saveButton}
+                    loading={loading}
+                  >
+                    Save Changes
+                  </Button>
+                </View>
+              )}
+            </Formik>
+          </View>
+        )}
 
         {/* Action Buttons - Master Only */}
         {isMaster && !editMode && (
@@ -548,7 +599,7 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
             </TouchableOpacity>
           </View>
         )}
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -579,6 +630,12 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 20,
+  },
+  scrollContent: {
+    paddingBottom: 20,
+  },
+  scrollContentWithButtons: {
+    paddingBottom: 100, // Extra space for fixed buttons
   },
   detailsContainer: {
     gap: 20,
@@ -759,7 +816,7 @@ const styles = StyleSheet.create({
     borderColor: '#10b981',
     borderWidth: 2,
     backgroundColor: '#f0fdf4',
-    minHeight: 50,
+    minHeight: 56,
   },
   input: {
     backgroundColor: 'white',
@@ -778,17 +835,23 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
     borderRadius: 4,
     backgroundColor: 'white',
-    minHeight: 50,
+    minHeight: 56,
   },
   errorText: {
     color: '#ef4444',
     fontSize: 12,
     marginTop: -12,
   },
+  formButtonsContainer: {
+    backgroundColor: 'white',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
   formButtons: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 24,
   },
   cancelButton: {
     flex: 1,
@@ -909,5 +972,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9ca3af',
   },
-
 }); 

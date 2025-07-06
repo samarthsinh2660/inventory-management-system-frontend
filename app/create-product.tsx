@@ -441,11 +441,13 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
     borderRadius: 4,
     backgroundColor: 'white',
+    minHeight: 56,
   },
   selectedPicker: {
     borderColor: '#10b981',
     borderWidth: 2,
     backgroundColor: '#f0fdf4',
+    minHeight: 56,
   },
   dropdownWithAdd: {
     flexDirection: 'row',
