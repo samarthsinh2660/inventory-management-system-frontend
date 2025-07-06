@@ -181,6 +181,15 @@ export default function Products() {
             {item.source_type === 'manufacturing' ? 'Manufacturing' : 'Trading'}
           </Text>
         </View>
+        {/* Display formula information if available */}
+        {item.formula_name && (
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Formula:</Text>
+            <Text style={[styles.detailValue, styles.formulaName]}>
+              {item.formula_name}
+            </Text>
+          </View>
+        )}
       </View>
       
       <View style={styles.productFooter}>
@@ -625,5 +634,8 @@ const styles = StyleSheet.create({
   createFirstButtonText: {
     color: 'white',
     fontWeight: '600',
+  },
+  formulaName: {
+    textTransform: 'capitalize',
   },
 });

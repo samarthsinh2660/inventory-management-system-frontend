@@ -68,7 +68,7 @@ export const fetchFormulas = createAsyncThunk(
         throw new Error('Authentication required');
       }
       
-      const response = await axios.get<ApiResponse<Formula[]>>(`${API_URL}/formulas`, getAuthHeader(token));
+      const response = await axios.get<ApiResponse<Formula[]>>(`${API_URL}/product-formulas`, getAuthHeader(token));
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
@@ -91,7 +91,7 @@ export const fetchFormulaById = createAsyncThunk(
         throw new Error('Authentication required');
       }
       
-      const response = await axios.get<ApiResponse<Formula>>(`${API_URL}/formulas/${id}`, getAuthHeader(token));
+      const response = await axios.get<ApiResponse<Formula>>(`${API_URL}/product-formulas/${id}`, getAuthHeader(token));
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
@@ -114,7 +114,7 @@ export const fetchFormulaProducts = createAsyncThunk(
         throw new Error('Authentication required');
       }
       
-      const response = await axios.get<ApiResponse<any[]>>(`${API_URL}/formulas/${id}/products`, getAuthHeader(token));
+      const response = await axios.get<ApiResponse<any[]>>(`${API_URL}/product-formulas/${id}/products`, getAuthHeader(token));
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
@@ -147,7 +147,7 @@ export const createFormula = createAsyncThunk(
         throw new Error('Authentication required');
       }
       
-      const response = await axios.post<ApiResponse<Formula>>(`${API_URL}/formulas`, formulaData, getAuthHeader(token));
+      const response = await axios.post<ApiResponse<Formula>>(`${API_URL}/product-formulas`, formulaData, getAuthHeader(token));
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
@@ -176,7 +176,7 @@ export const updateFormula = createAsyncThunk(
         throw new Error('Authentication required');
       }
       
-      const response = await axios.put<ApiResponse<Formula>>(`${API_URL}/formulas/${id}`, data, getAuthHeader(token));
+      const response = await axios.put<ApiResponse<Formula>>(`${API_URL}/product-formulas/${id}`, data, getAuthHeader(token));
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
@@ -199,7 +199,7 @@ export const deleteFormula = createAsyncThunk(
         throw new Error('Authentication required');
       }
       
-      await axios.delete(`${API_URL}/formulas/${id}`, getAuthHeader(token));
+      await axios.delete(`${API_URL}/product-formulas/${id}`, getAuthHeader(token));
       return id;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
@@ -233,7 +233,7 @@ export const updateFormulaComponent = createAsyncThunk(
       }
       
       const response = await axios.put<ApiResponse<Formula>>(
-        `${API_URL}/formulas/${formulaId}/component`, 
+        `${API_URL}/product-formulas/${formulaId}/component`, 
         componentData, 
         getAuthHeader(token)
       );
@@ -260,7 +260,7 @@ export const deleteFormulaComponent = createAsyncThunk(
       }
       
       const response = await axios.delete<ApiResponse<Formula>>(
-        `${API_URL}/formulas/${formulaId}/component/${componentId}`,
+        `${API_URL}/product-formulas/${formulaId}/component/${componentId}`,
         getAuthHeader(token)
       );
       return response.data;

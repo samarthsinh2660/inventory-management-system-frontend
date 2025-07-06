@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
@@ -27,6 +27,7 @@ const validationSchema = Yup.object({
   entry_type: Yup.string().required('Entry type is required'),
   location_id: Yup.number().min(1, 'Location is required').required('Location is required'),
   notes: Yup.string(),
+  reference_id: Yup.string(), // Optional reference_id field
 });
 
 export default function InventoryScreen() {
@@ -46,10 +47,12 @@ export default function InventoryScreen() {
   const [selectedProductId, setSelectedProductId] = useState<number>(0);
   const [viewMode, setViewMode] = useState<'all' | 'mine'>('all');
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [refreshing, setRefreshing] = useState(false);
   const itemsPerPage = 10;
 
   const isMaster = user?.role === 'master';
   const entries = viewMode === 'all' ? allEntries : userEntries;
+ 
   
   const pagination = usePagination(
     currentPage, 
@@ -58,11 +61,41 @@ export default function InventoryScreen() {
     setCurrentPage
   );
 
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    // Comprehensive refresh of all inventory data
+    Promise.all([
+      dispatch(fetchInventoryBalance()),
+      dispatch(fetchProducts({ page: 1, limit: 100 })), // Fetch more products to ensure all are available
+      dispatch(fetchLocations()),
+      loadEntries(),
+      // Also refresh user entries if user exists
+      user ? dispatch(fetchUserEntries({ page: 1, limit: itemsPerPage })) : Promise.resolve()
+    ]).finally(() => {
+      setRefreshing(false);
+    });
+  }, [dispatch, user]);
+
   useEffect(() => {
+    // Initial data load
     dispatch(fetchProducts({ page: 1, limit: 10 }));
     dispatch(fetchLocations());
     dispatch(fetchInventoryBalance());
     loadEntries();
+    
+    // Also load user entries on initial mount so they're available for toggle
+    if (user) {
+      dispatch(fetchUserEntries({ page: 1, limit: itemsPerPage }));
+    }
+    
+    // Set up refresh interval for real-time updates (every 60 seconds)
+    const intervalId = setInterval(() => {
+      dispatch(fetchInventoryBalance());
+      loadEntries();
+    }, 60000);
+    
+    // Clean up interval on component unmount
+    return () => clearInterval(intervalId);
   }, [dispatch]);
 
   useEffect(() => {
@@ -82,8 +115,16 @@ export default function InventoryScreen() {
     if (viewMode === 'all') {
       dispatch(fetchInventoryEntries(params));
     } else {
+      // Make sure to fetch user entries from the correct endpoint
       dispatch(fetchUserEntries(params));
     }
+  };
+
+  // Function to toggle between all entries and user entries
+  const toggleViewMode = () => {
+    const newMode = viewMode === 'all' ? 'mine' : 'all';
+    setViewMode(newMode);
+    setCurrentPage(1); // Reset to first page when changing views
   };
 
   const handleSubmit = async (values: any, { resetForm }: any) => {
@@ -94,6 +135,7 @@ export default function InventoryScreen() {
         entry_type: values.entry_type,
         location_id: values.location_id,
         notes: values.notes || undefined,
+        reference_id: values.reference_id || undefined,
       };
 
       await dispatch(createInventoryEntry(entryData)).unwrap();
@@ -132,11 +174,13 @@ export default function InventoryScreen() {
     const stockInfo = balance.find(item => item.product_id === product.id);
     const currentStock = stockInfo ? stockInfo.total_quantity : 0;
     const minThreshold = product.min_stock_threshold || 0;
+    const pricePerUnit = stockInfo?.price_per_unit || product.price || 0;
+    const totalPrice = stockInfo?.total_price || (pricePerUnit * currentStock);
     
     return (
       <View style={styles.stockCard}>
         <View style={styles.stockHeader}>
-          <Text style={styles.stockProductName}>{product.name}</Text>
+          <Text style={styles.stockProductName}>{product.name || 'Unknown Product'}</Text>
           <View style={[styles.stockBadge, { 
             backgroundColor: currentStock < minThreshold ? '#fef2f2' : '#f0fdf4' 
           }]}>
@@ -150,11 +194,19 @@ export default function InventoryScreen() {
         <View style={styles.stockDetails}>
           <View style={styles.stockItem}>
             <Text style={styles.stockLabel}>Current Stock</Text>
-            <Text style={styles.stockValue}>{currentStock} {product.unit}</Text>
+            <Text style={styles.stockValue}>{currentStock || 0} {product.unit || 'units'}</Text>
           </View>
           <View style={styles.stockItem}>
             <Text style={styles.stockLabel}>Min Threshold</Text>
-            <Text style={styles.stockValue}>{minThreshold} {product.unit}</Text>
+            <Text style={styles.stockValue}>{minThreshold || 0} {product.unit || 'units'}</Text>
+          </View>
+          <View style={styles.stockItem}>
+            <Text style={styles.stockLabel}>Price/Unit</Text>
+            <Text style={styles.stockValue}>₹{(pricePerUnit || 0).toFixed(2)}</Text>
+          </View>
+          <View style={styles.stockItem}>
+            <Text style={styles.stockLabel}>Total Value</Text>
+            <Text style={styles.stockValue}>₹{(totalPrice || 0).toFixed(2)}</Text>
           </View>
         </View>
         <Text style={styles.stockLocation}>{stockInfo?.location_name || 'Unknown Location'}</Text>
@@ -163,27 +215,27 @@ export default function InventoryScreen() {
   };
 
   const EntryItem = ({ entry }: { entry: any }) => {
-    const displayUsername = entry.username || getUsernameById(entry.user_id, users);
+    const displayUsername = entry.username || 'Unknown User';
     
     return (
       <View style={styles.entryItem}>
         <View style={[styles.entryIcon, { 
           backgroundColor: getEntryTypeBackgroundColor(entry.entry_type)
         }]}>
-          {entry.entry_type.includes('in') ? (
+          {entry.entry_type && entry.entry_type.includes('in') ? (
             <TrendingUp size={16} color={getEntryTypeColor(entry.entry_type)} />
           ) : (
             <TrendingDown size={16} color={getEntryTypeColor(entry.entry_type)} />
           )}
         </View>
         <View style={styles.entryContent}>
-          <Text style={styles.entryProduct}>{entry.product_name}</Text>
+          <Text style={styles.entryProduct}>{entry.product_name || 'Unknown Product'}</Text>
           <Text style={styles.entryDetails}>
-            {formatEntryType(entry.entry_type)}: {Math.abs(entry.quantity)} units
+            {formatEntryType(entry.entry_type) || 'Unknown Type'}: {Math.abs(entry.quantity || 0)} units
           </Text>
           <View style={styles.entryFooter}>
             <Text style={styles.entryTime}>
-              {new Date(entry.created_at).toLocaleDateString()} • {entry.location_name}
+              {entry.created_at ? new Date(entry.created_at).toLocaleDateString() : 'Unknown Date'} • {entry.location_name || 'Unknown Location'}
             </Text>
             {isMaster && (
               <Text style={styles.entryUser}>by {displayUsername}</Text>
@@ -198,21 +250,25 @@ export default function InventoryScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <View style={styles.headerContent}>
+          <View style={styles.headerLeft}>
             <TouchableOpacity onPress={() => setShowEntryForm(false)}>
               <Text style={styles.backButton}>← Back</Text>
             </TouchableOpacity>
-            <Text style={styles.title}>New Inventory Entry</Text>
+          </View>
+          <Text style={styles.title}>New Inventory Entry</Text>
+          <View style={styles.headerRight}>
+            {/* Empty view for balanced layout */}
           </View>
         </View>
         <ScrollView style={styles.form}>
           <Formik
             initialValues={{
-              product_id: 0,
+              product_id: selectedProductId || 0,
               quantity: '',
               entry_type: 'manual_in',
               location_id: 0,
               notes: '',
+              reference_id: '', // Added reference_id initial value
             }}
             validationSchema={validationSchema}
             onSubmit={handleSubmit}
@@ -231,7 +287,7 @@ export default function InventoryScreen() {
                     >
                       <Picker.Item label="Select a product" value={0} />
                       {products.map(product => (
-                        <Picker.Item key={product.id} label={product.name} value={product.id} />
+                        <Picker.Item key={product.id} label={product.name || 'Unknown Product'} value={product.id} />
                       ))}
                     </Picker>
                   </View>
@@ -242,11 +298,11 @@ export default function InventoryScreen() {
 
                 {selectedProduct && (
                   <View style={styles.productInfo}>
-                    <Text style={styles.productInfoTitle}>{selectedProduct.name} - Current Stock</Text>
+                    <Text style={styles.productInfoTitle}>{selectedProduct.name || 'Unknown Product'} - Current Stock</Text>
                     <View style={styles.stockInfo}>
-                      <Text style={styles.stockText}>Available: {selectedProductStock} {selectedProduct.unit}</Text>
+                      <Text style={styles.stockText}>Available: {selectedProductStock || 0} {selectedProduct.unit || 'units'}</Text>
                       <Text style={styles.stockText}>
-                        Min Required: {selectedProduct.min_stock_threshold || 0} {selectedProduct.unit}
+                        Min Required: {selectedProduct.min_stock_threshold || 0} {selectedProduct.unit || 'units'}
                       </Text>
                     </View>
                   </View>
@@ -266,7 +322,7 @@ export default function InventoryScreen() {
                     </Picker>
                   </View>
                   {errors.entry_type && touched.entry_type && (
-                    <Text style={styles.errorText}>{errors.entry_type}</Text>
+                    <Text style={styles.errorText}>{String(errors.entry_type)}</Text>
                   )}
                 </View>
 
@@ -287,16 +343,20 @@ export default function InventoryScreen() {
                   <View style={styles.picker}>
                     <Picker
                       selectedValue={values.location_id?.toString() || '0'}
-                      onValueChange={handleChange('location_id')}
+                      onValueChange={(itemValue) => {
+                        // Fix for type issue - convert string to number
+                        const numValue = itemValue === '0' ? 0 : Number(itemValue);
+                        setFieldValue('location_id', numValue);
+                      }}
                     >
-                      <Picker.Item label="Select a location" value={0} />
+                      <Picker.Item label="Select a location" value={'0'} />
                       {locations.map(location => (
-                        <Picker.Item key={location.id} label={location.name} value={location.id} />
+                        <Picker.Item key={location.id} label={location.name || 'Unknown Location'} value={location.id.toString()} />
                       ))}
                     </Picker>
                   </View>
                   {errors.location_id && touched.location_id && (
-                    <Text style={styles.errorText}>{errors.location_id}</Text>
+                    <Text style={styles.errorText}>{String(errors.location_id)}</Text>
                   )}
                 </View>
 
@@ -307,6 +367,15 @@ export default function InventoryScreen() {
                   mode="outlined"
                   style={styles.input}
                   multiline
+                />
+
+                {/* Add reference_id (referral ID) field */}
+                <TextInput
+                  label="Referral ID (Optional)"
+                  value={values.reference_id || ''}
+                  onChangeText={handleChange('reference_id')}
+                  mode="outlined"
+                  style={styles.input}
                 />
 
                 <View style={styles.buttonContainer}>
@@ -330,36 +399,27 @@ export default function InventoryScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.title}>Inventory</Text>
+        <Text style={styles.title}>Inventory</Text>
+        <View style={styles.headerButtons}>
+          {/* Audit Log Toggle Button */}
+          <TouchableOpacity 
+            style={[styles.logToggleButton, viewMode === 'mine' && styles.logToggleButtonActive]} 
+            onPress={toggleViewMode}
+          >
+            <View style={styles.logToggleContent}>
+              <BarChart3 size={16} color={viewMode === 'mine' ? '#2563eb' : '#6b7280'} />
+              <Text style={[styles.logToggleText, viewMode === 'mine' && styles.logToggleTextActive]}>
+                {viewMode === 'all' ? 'All Entries' : 'My Entries'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.addButton} onPress={() => setShowEntryForm(true)}>
             <Plus size={24} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Quick Actions Filter */}
-        <View style={styles.filterContainer}>
-          <SegmentedButtons
-            value={viewMode}
-            onValueChange={value => {
-              setViewMode(value as 'all' | 'mine');
-              setCurrentPage(1); // Reset to first page on filter change
-            }}
-            buttons={[
-              {
-                value: 'all',
-                label: 'All Entries',
-                disabled: !isMaster, // Only master can see all entries
-              },
-              {
-                value: 'mine',
-                label: 'My Entries',
-              },
-            ]}
-            style={styles.segmentedButtons}
-          />
-        </View>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -444,26 +504,63 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
   },
   header: {
-    padding: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    justifyContent: 'space-between',
   },
   title: {
     fontSize: 24,
     fontWeight: '700',
     color: '#1f2937',
   },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  logToggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: 'white',
+  },
+  logToggleButtonActive: {
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
+  },
+  logToggleContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  logToggleText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  logToggleTextActive: {
+    color: '#2563eb',
+  },
   backButton: {
     fontSize: 16,
     color: '#2563eb',
     fontWeight: '500',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerRight: {
+    width: 40,
   },
   addButton: {
     backgroundColor: '#2563eb',

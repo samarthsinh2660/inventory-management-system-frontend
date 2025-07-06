@@ -5,6 +5,7 @@ import { API_URL } from '../../utils/constant';
 export interface Location {
   id: number;
   name: string;
+  address?: string | null;
   factory_id: number | null;
 }
 
@@ -92,6 +93,7 @@ export const fetchLocationById = createAsyncThunk(
 // POST create location
 export interface CreateLocationData {
   name: string;
+  address?: string | null;
   factory_id?: number | null;
 }
 
@@ -106,7 +108,13 @@ export const createLocation = createAsyncThunk(
         throw new Error('Authentication required');
       }
       
-      const response = await axios.post<ApiResponse<Location>>(`${API_URL}/locations`, locationData, getAuthHeader(token));
+      // Set default factory_id to 1 if not provided
+      const dataToSubmit = {
+        ...locationData,
+        factory_id: locationData.factory_id ?? 1
+      };
+      
+      const response = await axios.post<ApiResponse<Location>>(`${API_URL}/locations`, dataToSubmit, getAuthHeader(token));
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {

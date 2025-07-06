@@ -173,7 +173,7 @@ export default function Dashboard() {
             {unresolvedAlertsCount > 0 && (
               <TouchableOpacity 
                 style={styles.notificationButton}
-                onPress={() => router.push('/alerts')}
+                onPress={() => router.push('/(alerts)/alerts')}
               >
                 <Bell size={20} color="#ef4444" />
                 <View style={styles.notificationBadge}>

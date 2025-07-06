@@ -5,7 +5,7 @@ import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { TextInput, Button } from 'react-native-paper';
 import { Picker } from '@react-native-picker/picker';
-import { ArrowLeft, Plus } from 'lucide-react-native';
+import { ArrowLeft, Plus, Check } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../hooks/useAppDispatch';
 import { useAppSelector } from '../hooks/useAppSelector';
@@ -51,7 +51,8 @@ export default function CreateProduct() {
     try {
       const productData = {
         ...values,
-        cost: parseFloat(values.cost),
+        price: parseFloat(values.cost), // Map cost to price for the API
+        cost: undefined, // Remove cost as it's not needed by API
         min_stock_threshold: values.min_stock_threshold ? parseFloat(values.min_stock_threshold) : undefined,
         formula_id: values.formula_id || undefined,
       };
@@ -70,6 +71,12 @@ export default function CreateProduct() {
         text2: error.message || 'Failed to create product',
       });
     }
+  };
+
+  // Helper function to get selected item name
+  const getSelectedItemName = (items: any[], selectedId: number) => {
+    const item = items.find(item => item.id === selectedId);
+    return item ? item.name : null;
   };
 
   return (
@@ -146,7 +153,7 @@ export default function CreateProduct() {
               
               <View style={styles.pickerContainer}>
                 <Text style={styles.label}>Category*</Text>
-                <View style={styles.picker}>
+                <View style={[styles.picker, values.category && styles.selectedPicker]}>
                   <Picker
                     selectedValue={values.category}
                     onValueChange={(value) => setFieldValue('category', value)}
@@ -156,11 +163,18 @@ export default function CreateProduct() {
                     <Picker.Item label="Finished Product" value="finished" />
                   </Picker>
                 </View>
+                <View style={styles.selectionIndicator}>
+                  <Check size={16} color="#10b981" />
+                  <Text style={styles.selectedStatus}>
+                    {values.category === 'raw' ? 'Raw Material' : 
+                     values.category === 'semi' ? 'Semi-Finished' : 'Finished Product'} selected
+                  </Text>
+                </View>
               </View>
 
               <View style={styles.pickerContainer}>
                 <Text style={styles.label}>Source Type*</Text>
-                <View style={styles.picker}>
+                <View style={[styles.picker, values.source_type && styles.selectedPicker]}>
                   <Picker
                     selectedValue={values.source_type}
                     onValueChange={(value) => setFieldValue('source_type', value)}
@@ -169,6 +183,12 @@ export default function CreateProduct() {
                     <Picker.Item label="Manufacturing" value="manufacturing" />
                   </Picker>
                 </View>
+                <View style={styles.selectionIndicator}>
+                  <Check size={16} color="#10b981" />
+                  <Text style={styles.selectedStatus}>
+                    {values.source_type === 'trading' ? 'Trading' : 'Manufacturing'} selected
+                  </Text>
+                </View>
               </View>
             </View>
 
@@ -176,9 +196,9 @@ export default function CreateProduct() {
               <Text style={styles.sectionTitle}>Location & Category</Text>
               
               <View style={styles.dropdownWithAdd}>
-                <View style={styles.pickerContainer}>
+                <View style={[styles.pickerContainer, { flex: 1 }]}>
                   <Text style={styles.label}>Subcategory*</Text>
-                  <View style={styles.picker}>
+                  <View style={[styles.picker, values.subcategory_id > 0 && styles.selectedPicker]}>
                     <Picker
                       selectedValue={values.subcategory_id}
                       onValueChange={(value) => setFieldValue('subcategory_id', value)}
@@ -193,6 +213,16 @@ export default function CreateProduct() {
                       ))}
                     </Picker>
                   </View>
+                  {values.subcategory_id > 0 ? (
+                    <View style={styles.selectionIndicator}>
+                      <Check size={16} color="#10b981" />
+                      <Text style={styles.selectedStatus}>
+                        {getSelectedItemName(subcategories, values.subcategory_id)} selected
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.unselectedStatus}>No subcategory selected</Text>
+                  )}
                 </View>
                 <TouchableOpacity
                   style={styles.addButton}
@@ -201,11 +231,14 @@ export default function CreateProduct() {
                   <Plus size={20} color="#2563eb" />
                 </TouchableOpacity>
               </View>
+              {touched.subcategory_id && errors.subcategory_id && (
+                <Text style={styles.errorText}>{errors.subcategory_id}</Text>
+              )}
 
               <View style={styles.dropdownWithAdd}>
-                <View style={styles.pickerContainer}>
+                <View style={[styles.pickerContainer, { flex: 1 }]}>
                   <Text style={styles.label}>Location*</Text>
-                  <View style={styles.picker}>
+                  <View style={[styles.picker, values.location_id > 0 && styles.selectedPicker]}>
                     <Picker
                       selectedValue={values.location_id}
                       onValueChange={(value) => setFieldValue('location_id', value)}
@@ -220,6 +253,16 @@ export default function CreateProduct() {
                       ))}
                     </Picker>
                   </View>
+                  {values.location_id > 0 ? (
+                    <View style={styles.selectionIndicator}>
+                      <Check size={16} color="#10b981" />
+                      <Text style={styles.selectedStatus}>
+                        {getSelectedItemName(locations, values.location_id)} selected
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.unselectedStatus}>No location selected</Text>
+                  )}
                 </View>
                 <TouchableOpacity
                   style={styles.addButton}
@@ -228,6 +271,9 @@ export default function CreateProduct() {
                   <Plus size={20} color="#2563eb" />
                 </TouchableOpacity>
               </View>
+              {touched.location_id && errors.location_id && (
+                <Text style={styles.errorText}>{errors.location_id}</Text>
+              )}
             </View>
 
             <View style={styles.section}>
@@ -240,7 +286,7 @@ export default function CreateProduct() {
                 onBlur={handleBlur('min_stock_threshold')}
                 keyboardType="numeric"
                 style={styles.input}
-                placeholder="Optional"
+                placeholder="Enter minimum stock threshold"
               />
             </View>
 
@@ -249,9 +295,9 @@ export default function CreateProduct() {
                 <Text style={styles.sectionTitle}>Manufacturing Formula</Text>
                 
                 <View style={styles.dropdownWithAdd}>
-                  <View style={styles.pickerContainer}>
+                  <View style={[styles.pickerContainer, { flex: 1 }]}>
                     <Text style={styles.label}>Formula</Text>
-                    <View style={styles.picker}>
+                    <View style={[styles.picker, values.formula_id > 0 && styles.selectedPicker]}>
                       <Picker
                         selectedValue={values.formula_id}
                         onValueChange={(value) => setFieldValue('formula_id', value)}
@@ -266,6 +312,16 @@ export default function CreateProduct() {
                         ))}
                       </Picker>
                     </View>
+                    {values.formula_id > 0 ? (
+                      <View style={styles.selectionIndicator}>
+                        <Check size={16} color="#10b981" />
+                        <Text style={styles.selectedStatus}>
+                          {getSelectedItemName(formulas, values.formula_id)} selected
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.unselectedStatus}>No formula selected</Text>
+                    )}
                   </View>
                   <TouchableOpacity
                     style={styles.addButton}
@@ -386,9 +442,14 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: 'white',
   },
+  selectedPicker: {
+    borderColor: '#10b981',
+    borderWidth: 2,
+    backgroundColor: '#f0fdf4',
+  },
   dropdownWithAdd: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
     gap: 8,
   },
   addButton: {
@@ -398,7 +459,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#eff6ff',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginTop: 20,
   },
   buttonContainer: {
     flexDirection: 'row',
@@ -408,5 +469,22 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
+  },
+  selectionIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  selectedStatus: {
+    color: '#10b981',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  unselectedStatus: {
+    color: '#9ca3af',
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 4,
   },
 });

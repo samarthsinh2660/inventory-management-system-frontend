@@ -198,7 +198,7 @@ export const fetchUserEntries = createAsyncThunk(
       if (params.limit) queryParams.append('limit', params.limit.toString());
 
       const query = queryParams.toString() ? `?${queryParams.toString()}` : '';
-      const response = await axios.get<ApiResponse<{ username: string; entries: InventoryEntry[]; }>>(`${API_URL}/user-entries${query}`, getAuthHeader(token));
+      const response = await axios.get<ApiResponse<{ username: string; entries: InventoryEntry[]; }>>(`${API_URL}/inventory/user-entries${query}`, getAuthHeader(token));
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {

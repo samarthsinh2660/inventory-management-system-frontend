@@ -5,6 +5,7 @@ import { API_URL } from '../../utils/constant';
 export interface Subcategory {
   id: number;
   name: string;
+  description?: string | null;
 }
 
 // API response interface
@@ -91,6 +92,7 @@ export const fetchSubcategoryById = createAsyncThunk(
 // POST create subcategory
 export interface CreateSubcategoryData {
   name: string;
+  description?: string | null;
 }
 
 export const createSubcategory = createAsyncThunk(

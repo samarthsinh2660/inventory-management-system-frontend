@@ -278,10 +278,10 @@ export default function Statistics() {
               </View>
               <View style={styles.alertsContent}>
                 <Text style={styles.alertsTitle}>
-                  {unresolvedAlertsCount + criticalAlerts} Active Alerts
+                  {unresolvedAlertsCount } Active Alerts
                 </Text>
                 <Text style={styles.alertsSubtitle}>
-                  {unresolvedAlertsCount} unread notifications, {criticalAlerts} critical alerts
+                  {unresolvedAlertsCount} unread notifications
                 </Text>
               </View>
               <ArrowRight size={20} color="#ef4444" />
@@ -442,7 +442,7 @@ export default function Statistics() {
                   onPress={() => router.push('/products')}
                 />
                 <StatCard
-                  title="Active Formulas"
+                  title="Formulas"
                   value={totalFormulas}
                   icon={<Calculator />}
                   color="#8b5cf6"

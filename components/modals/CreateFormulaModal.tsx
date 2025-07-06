@@ -8,7 +8,7 @@ import { X, Plus, Minus } from 'lucide-react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
-import { createFormula } from '../../store/slices/formulasSlice';
+import { createFormula, CreateFormulaData } from '../../store/slices/formulasSlice';
 import Toast from 'react-native-toast-message';
 
 interface CreateFormulaModalProps {
@@ -23,7 +23,7 @@ const validationSchema = Yup.object({
   components: Yup.array()
     .of(
       Yup.object({
-        product_id: Yup.number().required('Product is required'),
+        component_id: Yup.number().required('Product is required'),
         quantity: Yup.number().min(0.01, 'Quantity must be greater than 0').required('Quantity is required'),
       })
     )
@@ -41,10 +41,20 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
   const handleSubmit = async (values: {
     name: string;
     description: string;
-    components: { product_id: number; quantity: number }[];
+    components: { component_id: number; quantity: number }[];
   }) => {
     try {
-      const result = await dispatch(createFormula(values)).unwrap();
+      // Format data according to API requirements
+      const formulaData: CreateFormulaData = {
+        name: values.name,
+        description: values.description || null,
+        components: values.components.map(comp => ({
+          component_id: comp.component_id,
+          quantity: comp.quantity,
+        })),
+      };
+
+      const result = await dispatch(createFormula(formulaData)).unwrap();
       Toast.show({
         type: 'success',
         text1: 'Success',
@@ -75,7 +85,7 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
           initialValues={{
             name: '',
             description: '',
-            components: [{ product_id: 0, quantity: 0 }],
+            components: [{ component_id: 0, quantity: 0 }],
           }}
           validationSchema={validationSchema}
           onSubmit={handleSubmit}
@@ -115,9 +125,9 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
                           <Text style={styles.label}>Product*</Text>
                           <View style={styles.picker}>
                             <Picker
-                              selectedValue={component.product_id}
+                              selectedValue={component.component_id}
                               onValueChange={(value) =>
-                                setFieldValue(`components.${index}.product_id`, value)
+                                setFieldValue(`components.${index}.component_id`, value)
                               }
                             >
                               <Picker.Item label="Select Product" value={0} />
@@ -130,6 +140,17 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
                               ))}
                             </Picker>
                           </View>
+                          {touched.components && 
+                           touched.components[index] && 
+                           errors.components && 
+                           Array.isArray(errors.components) && 
+                           errors.components[index] && 
+                           typeof errors.components[index] === 'object' && 
+                           'component_id' in errors.components[index] && (
+                            <Text style={styles.errorText}>
+                              {errors.components[index].component_id}
+                            </Text>
+                          )}
                         </View>
 
                         <View style={styles.quantityContainer}>
@@ -142,6 +163,17 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
                             keyboardType="numeric"
                             style={styles.quantityInput}
                           />
+                          {touched.components && 
+                           touched.components[index] && 
+                           errors.components && 
+                           Array.isArray(errors.components) && 
+                           errors.components[index] && 
+                           typeof errors.components[index] === 'object' && 
+                           'quantity' in errors.components[index] && (
+                            <Text style={styles.errorText}>
+                              {errors.components[index].quantity}
+                            </Text>
+                          )}
                         </View>
 
                         <TouchableOpacity
@@ -155,7 +187,7 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
                     ))}
 
                     <TouchableOpacity
-                      onPress={() => push({ product_id: 0, quantity: 0 })}
+                      onPress={() => push({ component_id: 0, quantity: 0 })}
                       style={styles.addButton}
                     >
                       <Plus size={20} color="#2563eb" />
