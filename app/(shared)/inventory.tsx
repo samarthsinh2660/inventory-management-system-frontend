@@ -20,6 +20,8 @@ import {
   enrichInventoryEntries,
   usePagination
 } from '../../utils/helperFunctions';
+import InventoryEntryDetailsModal from '../../components/modals/InventoryEntryDetailsModal';
+import AllBalancesModal from '../../components/modals/AllBalancesModal';
 
 const validationSchema = Yup.object({
   product_id: Yup.number().min(1, 'Product is required').required('Product is required'),
@@ -48,6 +50,9 @@ export default function InventoryScreen() {
   const [viewMode, setViewMode] = useState<'all' | 'mine'>('all');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedEntry, setSelectedEntry] = useState<any>(null);
+  const [showEntryDetails, setShowEntryDetails] = useState(false);
+  const [showAllBalances, setShowAllBalances] = useState(false);
   const itemsPerPage = 10;
 
   const isMaster = user?.role === 'master';
@@ -218,7 +223,13 @@ export default function InventoryScreen() {
     const displayUsername = entry.username || 'Unknown User';
     
     return (
-      <View style={styles.entryItem}>
+      <TouchableOpacity 
+        style={styles.entryItem}
+        onPress={() => {
+          setSelectedEntry(entry);
+          setShowEntryDetails(true);
+        }}
+      >
         <View style={[styles.entryIcon, { 
           backgroundColor: getEntryTypeBackgroundColor(entry.entry_type)
         }]}>
@@ -242,7 +253,7 @@ export default function InventoryScreen() {
             )}
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -424,7 +435,7 @@ export default function InventoryScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Stock Levels</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowAllBalances(true)}>
               <Text style={styles.sectionLink}>View All</Text>
             </TouchableOpacity>
           </View>
@@ -494,6 +505,20 @@ export default function InventoryScreen() {
           )}
         </View>
       </ScrollView>
+
+      <InventoryEntryDetailsModal
+        visible={showEntryDetails}
+        onClose={() => {
+          setShowEntryDetails(false);
+          setSelectedEntry(null);
+        }}
+        entry={selectedEntry}
+      />
+
+      <AllBalancesModal
+        visible={showAllBalances}
+        onClose={() => setShowAllBalances(false)}
+      />
     </SafeAreaView>
   );
 }

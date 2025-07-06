@@ -14,6 +14,7 @@ import { fetchFormulas } from '../../store/slices/formulasSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ProductFiltersModal } from '@/components/modals/ProductFiltersModal';
 import { CustomSearchBar } from '@/components/CustomSearchBar';
+import ProductDetailsModal from '../../components/modals/ProductDetailsModal';
 
 interface FilterState {
   category: string;
@@ -34,6 +35,8 @@ export default function Products() {
   const [searchTerm, setSearchTerm] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [showProductDetails, setShowProductDetails] = useState(false);
   const [filters, setFilters] = useState<FilterState>({
     category: '',
     subcategory_id: 0,
@@ -100,7 +103,7 @@ export default function Products() {
     setRefreshing(true);
     try {
       await Promise.all([
-        dispatch(fetchProducts({ page: 1, limit: 10 })),
+        dispatch(fetchProducts({ page: 1, limit: 20 })), // Increased limit to show more products
         dispatch(fetchSubcategories()),
         dispatch(fetchLocations()),
         dispatch(fetchFormulas()),
@@ -110,12 +113,27 @@ export default function Products() {
     }
   }, [dispatch]);
 
+  const handleProductUpdated = React.useCallback(() => {
+    // Refresh the products list to show updated data
+    dispatch(fetchProducts({ page: 1, limit: 50 }));
+  }, [dispatch]);
+
   useEffect(() => {
-    onRefresh();
-  }, []);
+    // Load products with higher limit initially
+    dispatch(fetchProducts({ page: 1, limit: 50 }));
+    dispatch(fetchSubcategories());
+    dispatch(fetchLocations());
+    dispatch(fetchFormulas());
+  }, [dispatch]);
 
   const renderProduct = ({ item }: { item: any }) => (
-    <TouchableOpacity style={styles.productCard}>
+    <TouchableOpacity 
+      style={styles.productCard}
+      onPress={() => {
+        setSelectedProduct(item);
+        setShowProductDetails(true);
+      }}
+    >
       <View style={styles.productHeader}>
         <View style={styles.productInfo}>
           <Text style={styles.productName}>{item.name}</Text>
@@ -339,6 +357,16 @@ export default function Products() {
         subcategories={subcategories}
         locations={locations}
         formulas={formulas}
+      />
+
+      <ProductDetailsModal
+        visible={showProductDetails}
+        onClose={() => {
+          setShowProductDetails(false);
+          setSelectedProduct(null);
+        }}
+        product={selectedProduct}
+        onProductUpdated={handleProductUpdated}
       />
     </SafeAreaView>
   );

@@ -12,6 +12,7 @@ import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { store, persistor } from '../store';
 import { initAuth } from '../store/slices/authSlice';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { setupAxiosInterceptors } from '../utils/axiosInterceptor';
 
 const theme = {
   ...DefaultTheme,
@@ -26,6 +27,9 @@ function AppContent() {
   useFrameworkReady();
 
   useEffect(() => {
+    // Set up axios interceptors for global auth handling
+    setupAxiosInterceptors();
+    
     // Initialize authentication by loading tokens and user profile
     const initialize = async () => {
       try {

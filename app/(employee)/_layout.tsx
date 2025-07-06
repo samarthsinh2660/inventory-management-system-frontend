@@ -2,12 +2,14 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { LayoutDashboard, Package, CirclePlus as PlusCircle, Settings, FileText } from 'lucide-react-native';
 import { useAppSelector } from '../../hooks/useAppSelector';
+import { AuthGuard } from '../../components/AuthGuard';
 
 export default function TabLayout() {
   const user = useAppSelector(state => state.auth.user);
 
   return (
-    <Tabs
+    <AuthGuard>
+      <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: '#2563eb',
@@ -73,5 +75,6 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </AuthGuard>
   );
 }
