@@ -8,13 +8,7 @@ import { X } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { createSubcategory, updateSubcategory } from '../../store/slices/subcategoriesSlice';
 import Toast from 'react-native-toast-message';
-
-interface CreateSubcategoryModalProps {
-  isVisible: boolean;
-  onClose: () => void;
-  onSuccess?: (subcategory: any) => void;
-  editingSubcategory?: any;
-}
+import { CreateSubcategoryModalProps } from '@/types/general';
 
 const validationSchema = Yup.object({
   name: Yup.string().required('Name is required'),
@@ -45,13 +39,13 @@ export const CreateSubcategoryModal: React.FC<CreateSubcategoryModalProps> = ({
         });
       } else {
         result = await dispatch(createSubcategory(values)).unwrap();
-        Toast.show({
-          type: 'success',
-          text1: 'Success',
-          text2: 'Subcategory created successfully',
-        });
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Subcategory created successfully',
+      });
       }
-      onSuccess?.(result);
+      onSuccess?.(result.data);
       onClose();
     } catch (error: any) {
       Toast.show({

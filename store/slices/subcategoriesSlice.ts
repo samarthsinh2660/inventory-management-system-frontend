@@ -1,12 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { API_URL } from '../../utils/constant';
-
-export interface Subcategory {
-  id: number;
-  name: string;
-  description?: string | null;
-}
+import { Subcategory, SubcategoriesState, CreateSubcategoryData, UpdateSubcategoryData } from '@/types/product';
+import { getAuthHeader } from '@/utils/authHelper';
 
 // API response interface
 interface ApiResponse<T> {
@@ -15,16 +11,6 @@ interface ApiResponse<T> {
   message: string;
   meta?: {
     count?: number;
-  };
-}
-
-export interface SubcategoriesState {
-  list: Subcategory[];
-  selected: Subcategory | null;
-  loading: boolean;
-  error: string | null;
-  meta: {
-    count: number;
   };
 }
 
@@ -37,11 +23,6 @@ const initialState: SubcategoriesState = {
     count: 0
   }
 };
-
-// Helper to get authorization header with token
-const getAuthHeader = (token: string) => ({
-  headers: { Authorization: `Bearer ${token}` }
-});
 
 // GET all subcategories
 export const fetchSubcategories = createAsyncThunk(
@@ -89,11 +70,6 @@ export const fetchSubcategoryById = createAsyncThunk(
   }
 );
 
-// POST create subcategory
-export interface CreateSubcategoryData {
-  name: string;
-  description?: string | null;
-}
 
 export const createSubcategory = createAsyncThunk(
   'subcategories/createSubcategory',
@@ -117,11 +93,6 @@ export const createSubcategory = createAsyncThunk(
   }
 );
 
-// PUT update subcategory
-export interface UpdateSubcategoryData {
-  id: number;
-  data: CreateSubcategoryData;
-}
 
 export const updateSubcategory = createAsyncThunk(
   'subcategories/updateSubcategory',

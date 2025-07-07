@@ -1,15 +1,7 @@
 import React from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Search, X } from 'lucide-react-native';
-
-interface CustomSearchBarProps {
-  placeholder?: string;
-  value: string;
-  onChangeText: (text: string) => void;
-  onClear?: () => void;
-  style?: any;
-  autoFocus?: boolean;
-}
+import { CustomSearchBarProps } from '@/types/product';
 
 export const CustomSearchBar: React.FC<CustomSearchBarProps> = ({
   placeholder = "Search...",

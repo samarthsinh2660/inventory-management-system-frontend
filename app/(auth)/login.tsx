@@ -10,6 +10,7 @@ import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { signin } from '../../store/slices/authSlice';
 import Toast from 'react-native-toast-message';
+import { UserRole } from '@/types/user';
 
 const validationSchema = Yup.object({
   username: Yup.string().required('Username is required'),
@@ -25,7 +26,7 @@ export default function Login() {
     try {
       const result = await dispatch(signin(values)).unwrap();
       // Redirect based on user role
-      if (result.user.role === 'master') {
+      if (result.user.role === UserRole.MASTER) {
         router.replace('/(master)');
       } else {
         router.replace('/(employee)');
@@ -104,24 +105,6 @@ export default function Login() {
                 >
                   Sign In
                 </Button>
-
-                <View style={styles.quickLogin}>
-                  <Text style={styles.quickLoginTitle}>Quick Login:</Text>
-                  <View style={styles.quickLoginButtons}>
-                    <TouchableOpacity
-                      style={styles.quickLoginButton}
-                      onPress={() => handleLogin({ username: 'admin', password: 'admin123' })}
-                    >
-                      <Text style={styles.quickLoginButtonText}>Admin</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.quickLoginButton, styles.quickLoginButtonSecondary]}
-                      onPress={() => handleLogin({ username: 'employee1', password: 'emp123' })}
-                    >
-                      <Text style={[styles.quickLoginButtonText, styles.quickLoginButtonTextSecondary]}>Employee</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
               </View>
             )}
           </Formik>

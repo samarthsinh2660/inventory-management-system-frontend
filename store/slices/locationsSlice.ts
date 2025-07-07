@@ -1,13 +1,10 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { API_URL } from '../../utils/constant';
+import { Location, LocationsState, CreateLocationData, UpdateLocationData } from '@/types/product';
+import { getAuthHeader } from '@/utils/authHelper';
 
-export interface Location {
-  id: number;
-  name: string;
-  address?: string | null;
-  factory_id: number | null;
-}
+
 
 // API response interface
 interface ApiResponse<T> {
@@ -19,15 +16,7 @@ interface ApiResponse<T> {
   };
 }
 
-export interface LocationsState {
-  list: Location[];
-  selected: Location | null;
-  loading: boolean;
-  error: string | null;
-  meta: {
-    count: number;
-  };
-}
+
 
 const initialState: LocationsState = {
   list: [],
@@ -38,11 +27,6 @@ const initialState: LocationsState = {
     count: 0
   }
 };
-
-// Helper to get authorization header with token
-const getAuthHeader = (token: string) => ({
-  headers: { Authorization: `Bearer ${token}` }
-});
 
 // GET all locations
 export const fetchLocations = createAsyncThunk(
@@ -90,13 +74,6 @@ export const fetchLocationById = createAsyncThunk(
   }
 );
 
-// POST create location
-export interface CreateLocationData {
-  name: string;
-  address?: string | null;
-  factory_id?: number | null;
-}
-
 export const createLocation = createAsyncThunk(
   'locations/createLocation',
   async (locationData: CreateLocationData, { rejectWithValue, getState }) => {
@@ -124,12 +101,6 @@ export const createLocation = createAsyncThunk(
     }
   }
 );
-
-// PUT update location
-export interface UpdateLocationData {
-  id: number;
-  data: Partial<CreateLocationData>;
-}
 
 export const updateLocation = createAsyncThunk(
   'locations/updateLocation',

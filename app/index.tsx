@@ -5,7 +5,8 @@ import { jwtDecode } from 'jwt-decode';
 import { useAppSelector } from '../hooks/useAppSelector';
 import { useAppDispatch } from '../hooks/useAppDispatch';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-import { initAuth, logout, clearAuth, TokenData } from '../store/slices/authSlice';
+import { initAuth, logout, clearAuth } from '../store/slices/authSlice';
+import { TokenData } from '@/types/user';
 
 export default function Index() {
   const router = useRouter();

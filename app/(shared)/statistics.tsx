@@ -40,6 +40,7 @@ import {
   getInStockProductsCount, 
   getEntryCountsByType 
 } from '../../utils/helperFunctions';
+import { UserRole } from '@/types/user';
 
 const { width } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -62,7 +63,7 @@ export default function Statistics() {
   
   const [refreshing, setRefreshing] = React.useState(false);
 
-  const isMaster = user?.role === 'master';
+  const isMaster = user?.role === UserRole.MASTER;
 
   // Helper function calculations using inventory balance
   const unresolvedAlertsCount = notifications.filter(notification => !notification.is_read).length;
@@ -82,8 +83,8 @@ export default function Statistics() {
     inventoryBalance.reduce((sum, item) => sum + item.total_quantity, 0) / totalProducts : 0;
 
   // User and system statistics (master only)
-  const masterUsers = isMaster ? users.filter(u => u.role === 'master').length : 0;
-  const employeeUsers = isMaster ? users.filter(u => u.role === 'employee').length : 0;
+  const masterUsers = isMaster ? users.filter(u => u.role === UserRole.MASTER).length : 0;
+  const employeeUsers = isMaster ? users.filter(u => u.role === UserRole.EMPLOYEE).length : 0;
   const totalLocations = locations.length;
   const totalFormulas = formulas.length;
   const totalAuditLogs = isMaster ? auditLogs.length : 0;

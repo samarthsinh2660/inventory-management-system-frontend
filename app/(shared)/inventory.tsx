@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Activit
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
-import { TextInput, Button, Chip, SegmentedButtons } from 'react-native-paper';
+import { TextInput, Button} from 'react-native-paper';
 import { Picker } from '@react-native-picker/picker';
 import { Package, Plus, TrendingUp, TrendingDown, ChartBar as BarChart3, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
@@ -12,16 +12,24 @@ import { createInventoryEntry, fetchInventoryBalance, fetchInventoryEntries, fet
 import { fetchProducts } from '../../store/slices/productsSlice';
 import { fetchLocations } from '../../store/slices/locationsSlice';
 import Toast from 'react-native-toast-message';
-import { 
-  getUsernameById,
+import {
   formatEntryType,
   getEntryTypeColor,
   getEntryTypeBackgroundColor,
-  enrichInventoryEntries,
   usePagination
 } from '../../utils/helperFunctions';
 import InventoryEntryDetailsModal from '../../components/modals/InventoryEntryDetailsModal';
 import AllBalancesModal from '../../components/modals/AllBalancesModal';
+import { UserRole } from '@/types/user';
+import { 
+  InventoryEntryType, 
+  InventoryEntry,
+  CreateInventoryEntryData ,
+  InventoryFormValues,
+  StockCardProps,
+  EntryItemProps
+} from '@/types/inventory';
+import { ViewMode } from '@/types/general';
 
 const validationSchema = Yup.object({
   product_id: Yup.number().min(1, 'Product is required').required('Product is required'),
@@ -47,15 +55,15 @@ export default function InventoryScreen() {
   const user = useAppSelector(state => state.auth.user);
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<number>(0);
-  const [viewMode, setViewMode] = useState<'all' | 'mine'>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('all');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedEntry, setSelectedEntry] = useState<any>(null);
+  const [selectedEntry, setSelectedEntry] = useState<InventoryEntry | null>(null);
   const [showEntryDetails, setShowEntryDetails] = useState(false);
   const [showAllBalances, setShowAllBalances] = useState(false);
   const itemsPerPage = 10;
 
-  const isMaster = user?.role === 'master';
+  const isMaster = user?.role === UserRole.MASTER;
   const entries = viewMode === 'all' ? allEntries : userEntries;
  
   
@@ -132,9 +140,12 @@ export default function InventoryScreen() {
     setCurrentPage(1); // Reset to first page when changing views
   };
 
-  const handleSubmit = async (values: any, { resetForm }: any) => {
+  const handleSubmit = async (
+    values: InventoryFormValues, 
+    { resetForm }: { resetForm: () => void }
+  ) => {
     try {
-      const entryData = {
+      const entryData: CreateInventoryEntryData = {
         product_id: values.product_id,
         quantity: parseFloat(values.quantity),
         entry_type: values.entry_type,
@@ -174,12 +185,12 @@ export default function InventoryScreen() {
 
   const recentEntries = entries.slice(0, 10);
 
-  const StockCard = ({ product }: { product: any }) => {
+  const StockCard = ({ product }: StockCardProps) => {
     // Find stock information for this product from balance
     const stockInfo = balance.find(item => item.product_id === product.id);
     const currentStock = stockInfo ? stockInfo.total_quantity : 0;
     const minThreshold = product.min_stock_threshold || 0;
-    const pricePerUnit = stockInfo?.price_per_unit || product.price || 0;
+    const pricePerUnit = stockInfo?.price_per_unit || parseFloat(product.price?.toString()) || 0;
     const totalPrice = stockInfo?.total_price || (pricePerUnit * currentStock);
     
     return (
@@ -219,7 +230,7 @@ export default function InventoryScreen() {
     );
   };
 
-  const EntryItem = ({ entry }: { entry: any }) => {
+  const EntryItem = ({ entry }: EntryItemProps) => {
     const displayUsername = entry.username || 'Unknown User';
     
     return (
@@ -276,7 +287,7 @@ export default function InventoryScreen() {
             initialValues={{
               product_id: selectedProductId || 0,
               quantity: '',
-              entry_type: 'manual_in',
+              entry_type: InventoryEntryType.MANUAL_IN,
               location_id: 0,
               notes: '',
               reference_id: '', // Added reference_id initial value
@@ -326,10 +337,10 @@ export default function InventoryScreen() {
                       selectedValue={values.entry_type}
                       onValueChange={handleChange('entry_type')}
                     >
-                      <Picker.Item label="Manual In" value="manual_in" />
-                      <Picker.Item label="Manual Out" value="manual_out" />
-                      <Picker.Item label="Manufacturing In" value="manufacturing_in" />
-                      <Picker.Item label="Manufacturing Out" value="manufacturing_out" />
+                      <Picker.Item label="Manual In" value={InventoryEntryType.MANUAL_IN} />
+                      <Picker.Item label="Manual Out" value={InventoryEntryType.MANUAL_OUT} />
+                      <Picker.Item label="Manufacturing In" value={InventoryEntryType.MANUFACTURING_IN} />
+                      <Picker.Item label="Manufacturing Out" value={InventoryEntryType.MANUFACTURING_OUT} />
                     </Picker>
                   </View>
                   {errors.entry_type && touched.entry_type && (

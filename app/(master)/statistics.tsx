@@ -2,11 +2,12 @@ import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import Statistics from '../(shared)/statistics';
+import { UserRole } from '@/types/user';
 
 export default function ProtectedStatisticsScreen() {
   const router = useRouter();
   const user = useAppSelector(state => state.auth.user);
-  const isMaster = user?.role === 'master';
+  const isMaster = user?.role === UserRole.MASTER;
   
   useEffect(() => {
     // If not a master user, redirect to dashboard

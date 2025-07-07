@@ -2,36 +2,8 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_URL } from '../../utils/constant';
-import { jwtDecode } from 'jwt-decode';
-
-export interface TokenData {
-  id: number;
-  is_master: boolean;
-  email?: string;
-  username?: string;
-  name?: string;
-  iat?: number;
-  exp?: number;
-}
-
-// User interface aligned with backend
-export interface User {
-  id: number;
-  username: string;
-  name: string;
-  email?: string;
-  role: 'master' | 'employee';
-  created_at?: string;
-}
-
-// Auth state interface
-interface AuthState {
-  accessToken: string | null;
-  refreshToken: string | null;
-  user: User | null;
-  loading: boolean;
-  error: string | null;
-}
+import { User, AuthState,CreateUserData, UpdateProfileData, SignInData } from '@/types/user';
+import { decodeTokenAndCreateUser,saveTokens,clearTokens,determineRole } from '@/utils/authHelper';
 
 const initialState: AuthState = {
   accessToken: null,
@@ -42,88 +14,10 @@ const initialState: AuthState = {
 };
 
 
-const decodeTokenAndCreateUser = (token: string): User => {
-  try {
-    const decoded = jwtDecode<TokenData>(token);
-    return {
-      id: decoded.id,
-      username: decoded.username || '',
-      name: decoded.name || decoded.username || '',
-      email: decoded.email,
-      role: decoded.is_master ? 'master' : 'employee'
-    };
-  } catch (error) {
-    console.error('Error decoding token:', error);
-    throw new Error('Invalid token');
-  }
-};
-
-// Helper to save tokens to local storage
-export const saveTokens = async (accessToken: string, refreshToken: string) => {
-  try {
-    await AsyncStorage.setItem('accessToken', accessToken);
-    await AsyncStorage.setItem('refreshToken', refreshToken);
-    console.log('Tokens saved successfully');
-  } catch (error) {
-    console.error('Error saving tokens:', error);
-  }
-};
-
-// Helper to clear tokens from local storage
-export const clearTokens = async () => {
-  try {
-    await AsyncStorage.removeItem('accessToken');
-    await AsyncStorage.removeItem('refreshToken');
-    await AsyncStorage.removeItem('token'); // Clear legacy token if exists
-    console.log('Tokens cleared successfully');
-  } catch (error) {
-    console.error('Error clearing tokens:', error);
-  }
-};
-
-// Helper to clear all mock/test data
-export const clearAllStorageData = async () => {
-  try {
-    await AsyncStorage.clear();
-    console.log('All storage data cleared');
-  } catch (error) {
-    console.error('Error clearing storage:', error);
-  }
-};
-
-// Helper to get tokens from AsyncStorage
-export const getTokens = async () => {
-  try {
-    const accessToken = await AsyncStorage.getItem('accessToken');
-    const refreshToken = await AsyncStorage.getItem('refreshToken');
-    
-    // Check for legacy token
-    if (!accessToken) {
-      const legacyToken = await AsyncStorage.getItem('token');
-      if (legacyToken) {
-        console.log('Found legacy token');
-        return { accessToken: legacyToken, refreshToken: null };
-      }
-    }
-    
-    return { accessToken, refreshToken };
-  } catch (error) {
-    console.error('Error getting tokens:', error);
-    return { accessToken: null, refreshToken: null };
-  }
-};
-
-// Determine role from API response - handles both role string and is_master boolean
-const determineRole = (data: any): 'master' | 'employee' => {
-  if (data?.role === 'master') return 'master';
-  if (data?.is_master === true) return 'master';
-  return 'employee';
-};
-
 // Signup
 export const signup = createAsyncThunk(
   'auth/signup',
-  async (userData: { name: string; username: string; password: string; role: 'master' | 'employee'; email?: string }, { rejectWithValue }) => {
+  async (userData: CreateUserData, { rejectWithValue }) => {
     try {
       const response = await axios.post(`${API_URL}/auth/signup`, userData);
       
@@ -177,7 +71,7 @@ export const signup = createAsyncThunk(
 // Signin
 export const signin = createAsyncThunk(
   'auth/signin',
-  async (credentials: { username: string; password: string }, { rejectWithValue }) => {
+  async (credentials: SignInData, { rejectWithValue }) => {
     try {
       const response = await axios.post(`${API_URL}/auth/signin`, credentials);
       
@@ -294,13 +188,7 @@ export const getProfile = createAsyncThunk(
 // Update Profile
 export const updateProfile = createAsyncThunk(
   'auth/updateProfile',
-  async (profileData: { 
-    name?: string; 
-    email?: string; 
-    currentPassword?: string; 
-    newPassword?: string;
-    username?: string; // Add username parameter (though self username change may be restricted by backend)
-  }, { rejectWithValue, getState }) => {
+  async (profileData: UpdateProfileData, { rejectWithValue, getState }) => {
     try {
       const state = getState() as { auth: AuthState };
       const token = state.auth.accessToken;

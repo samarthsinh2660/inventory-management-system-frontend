@@ -7,6 +7,8 @@ import { useAppSelector } from '../../hooks/useAppSelector';
 import { fetchAuditLogs, deleteAuditLog } from '../../store/slices/auditLogsSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import Toast from 'react-native-toast-message';
+import { UserRole } from '@/types/user';
+import { AuditAction, AuditLog } from '@/types/log';
 
 export default function AuditLogs() {
   const dispatch = useAppDispatch();
@@ -15,7 +17,7 @@ export default function AuditLogs() {
   const [refreshing, setRefreshing] = useState(false);
   const [showMyLogsOnly, setShowMyLogsOnly] = useState(false);
 
-  const isMaster = user?.role === 'master';
+  const isMaster = user?.role === UserRole.MASTER;
 
   // Filter logs based on user role and filter setting
   const filteredLogs = isMaster 
@@ -57,11 +59,11 @@ export default function AuditLogs() {
 
   const getActionIcon = (action: string) => {
     switch (action) {
-      case 'INSERT':
+      case AuditAction.CREATE.toUpperCase():
         return <Plus size={16} color="#10b981" />;
-      case 'UPDATE':
+      case AuditAction.UPDATE.toUpperCase():
         return <Edit size={16} color="#f59e0b" />;
-      case 'DELETE':
+      case AuditAction.DELETE.toUpperCase():
         return <Minus size={16} color="#ef4444" />;
       default:
         return <FileText size={16} color="#6b7280" />;
@@ -70,11 +72,11 @@ export default function AuditLogs() {
 
   const getActionColor = (action: string) => {
     switch (action) {
-      case 'INSERT':
+      case AuditAction.CREATE.toUpperCase():
         return '#10b981';
-      case 'UPDATE':
+      case AuditAction.UPDATE.toUpperCase():
         return '#f59e0b';
-      case 'DELETE':
+      case AuditAction.DELETE.toUpperCase():
         return '#ef4444';
       default:
         return '#6b7280';
@@ -138,7 +140,7 @@ export default function AuditLogs() {
     return { backgroundColor, textColor };
   };
 
-  const renderAuditLog = ({ item }: { item: any }) => {
+  const renderAuditLog = ({ item }: { item: AuditLog }) => {
     // Extract the entry_type from new_data if available
     const entryType = item.new_data?.entry_type;
     const entryTypeStyles = getEntryTypeStyle(entryType);

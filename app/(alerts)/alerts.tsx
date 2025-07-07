@@ -5,9 +5,10 @@ import { TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, RefreshCw, 
 import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
-import { fetchNotifications, resolveAlert, checkAlerts, Notification } from '../../store/slices/alertsSlice';
+import { fetchNotifications, resolveAlert, checkAlerts} from '../../store/slices/alertsSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import Toast from 'react-native-toast-message';
+import { Notification } from '@/types/alerts';
 
 export default function Alerts() {
   const router = useRouter();

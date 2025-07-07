@@ -10,7 +10,7 @@ import { CreateUserModal } from '../../components/modals/CreateUserModal';
 import { EditUserModal } from '../../components/modals/EditUserModal';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import Toast from 'react-native-toast-message';
-import { User as UserType } from '../../store/slices/authSlice';
+import { UserRole, User as UserType } from '@/types/user';
 
 export default function UserManagement() {
   const router = useRouter();
@@ -83,7 +83,7 @@ export default function UserManagement() {
     <View style={styles.userCard}>
       <View style={styles.userHeader}>
         <View style={styles.userIcon}>
-          {item.role === 'master' ? (
+          {item.role === UserRole.MASTER ? (
             <Crown size={20} color="#f59e0b" />
           ) : (
             <User size={20} color="#6b7280" />
@@ -92,7 +92,7 @@ export default function UserManagement() {
         <View style={styles.userInfo}>
           <Text style={styles.username}>{item.username}</Text>
           <Text style={styles.role}>
-            {item.role === 'master' ? 'Master User' : 'Employee'}
+            {item.role === UserRole.MASTER ? 'Master User' : 'Employee'}
           </Text>
           {item.name && (
             <Text style={styles.name}>Name: {item.name}</Text>

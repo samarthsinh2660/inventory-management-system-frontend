@@ -1,7 +1,7 @@
 // utils/dashboardHelpers.ts
-import { InventoryEntry, InventoryBalance } from '@/store/slices/inventorySlice'; 
-import { User } from '@/store/slices/authSlice'; 
-import { Product } from '@/store/slices/productsSlice'; 
+import { InventoryEntry, InventoryBalance } from '@/types/inventory';
+import { User } from '@/types/user';
+import { Product } from '@/types/product';
 
 export const getUsernameById = (userId: string | number, users: User[]) => {
   const foundUser = users.find(u => u.id === userId);

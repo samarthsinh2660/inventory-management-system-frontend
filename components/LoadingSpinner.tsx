@@ -1,10 +1,6 @@
 import React from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-
-interface LoadingSpinnerProps {
-  size?: 'small' | 'large';
-  color?: string;
-}
+import { LoadingSpinnerProps } from '@/types/general';
 
 export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ 
   size = 'large', 

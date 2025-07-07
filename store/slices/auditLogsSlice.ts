@@ -1,45 +1,9 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { API_URL } from '../../utils/constant';
-
-export interface AuditLog {
-  id: number;
-  entry_id: number;
-  action: 'create' | 'update' | 'delete';
-  old_data: any | null;
-  new_data: any | null;
-  user_id: number;
-  timestamp: string;
-  reason: string | null;
-  username: string;
-}
-
-// API response interface
-interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data: T;
-  meta?: {
-    page: number;
-    limit: number;
-    total: number;
-    pages: number;
-  };
-  timestamp?: string;
-}
-
-export interface AuditLogsState {
-  list: AuditLog[];
-  selected: AuditLog | null;
-  loading: boolean;
-  error: string | null;
-  meta: {
-    page: number;
-    limit: number;
-    total: number;
-    pages: number;
-  };
-}
+import { AuditLog, AuditLogsState, FetchAuditLogsParams, DeleteLogParams} from '@/types/log';
+import { ApiResponse } from '@/types/inventory';
+import { getAuthHeader } from '@/utils/authHelper';
 
 const initialState: AuditLogsState = {
   list: [],
@@ -54,21 +18,7 @@ const initialState: AuditLogsState = {
   }
 };
 
-// Fetch all audit logs with optional filtering
-export interface FetchAuditLogsParams {
-  entry_id?: number;
-  action?: 'create' | 'update' | 'delete';
-  user_id?: number;
-  start_date?: string;
-  end_date?: string;
-  page?: number;
-  limit?: number;
-}
 
-// Helper to get authorization header with token
-const getAuthHeader = (token: string) => ({
-  headers: { Authorization: `Bearer ${token}` }
-});
 
 export const fetchAuditLogs = createAsyncThunk(
   'auditLogs/fetchAuditLogs',
@@ -147,12 +97,6 @@ export const fetchLogsByRecordType = createAsyncThunk(
     }
   }
 );
-
-// Delete log with optional reversion
-export interface DeleteLogParams {
-  id: number;
-  revert?: boolean;
-}
 
 export const deleteAuditLog = createAsyncThunk(
   'auditLogs/deleteAuditLog',

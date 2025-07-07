@@ -2,11 +2,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { useAuthGuard } from '../hooks/useAuthGuard';
 import { LoadingSpinner } from './LoadingSpinner';
-
-interface AuthGuardProps {
-  children: React.ReactNode;
-  fallback?: React.ReactNode;
-}
+import { AuthGuardProps } from '@/types/user';
 
 export const AuthGuard: React.FC<AuthGuardProps> = ({ 
   children, 

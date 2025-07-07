@@ -10,12 +10,8 @@ import { useAppSelector } from '../../hooks/useAppSelector';
 import { updateInventoryEntry } from '../../store/slices/inventorySlice';
 import { formatEntryType, getEntryTypeColor, getEntryTypeBackgroundColor } from '../../utils/helperFunctions';
 import Toast from 'react-native-toast-message';
-
-interface InventoryEntryDetailsModalProps {
-  visible: boolean;
-  onClose: () => void;
-  entry: any;
-}
+import { InventoryEntryDetailsModalProps, InventoryEntryType } from '@/types/inventory';
+import { UserRole } from '@/types/user';
 
 const validationSchema = Yup.object({
   quantity: Yup.number().min(0.01, 'Quantity must be greater than 0').required('Quantity is required'),
@@ -32,7 +28,7 @@ export default function InventoryEntryDetailsModal({ visible, onClose, entry }: 
   const [editMode, setEditMode] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const isMaster = user?.role === 'master';
+  const isMaster = user?.role === UserRole.MASTER;
   const canEdit = isMaster || (entry && entry.user_id === user?.id);
 
   if (!entry) return null;
@@ -192,7 +188,7 @@ export default function InventoryEntryDetailsModal({ visible, onClose, entry }: 
             <Formik
               initialValues={{
                 quantity: entry.quantity?.toString() || '',
-                entry_type: entry.entry_type || 'manual_in',
+                entry_type: entry.entry_type || InventoryEntryType.MANUAL_IN,
                 location_id: entry.location_id || 0,
                 notes: entry.notes || '',
                 reference_id: entry.reference_id || '',
@@ -217,10 +213,10 @@ export default function InventoryEntryDetailsModal({ visible, onClose, entry }: 
                         selectedValue={values.entry_type}
                         onValueChange={handleChange('entry_type')}
                       >
-                        <Picker.Item label="Manual In" value="manual_in" />
-                        <Picker.Item label="Manual Out" value="manual_out" />
-                        <Picker.Item label="Manufacturing In" value="manufacturing_in" />
-                        <Picker.Item label="Manufacturing Out" value="manufacturing_out" />
+                        <Picker.Item label="Manual In" value={InventoryEntryType.MANUAL_IN} />
+                        <Picker.Item label="Manual Out" value={InventoryEntryType.MANUAL_OUT} />
+                        <Picker.Item label="Manufacturing In" value={InventoryEntryType.MANUFACTURING_IN} />
+                        <Picker.Item label="Manufacturing Out" value={InventoryEntryType.MANUFACTURING_OUT} />
                       </Picker>
                     </View>
                     {touched.entry_type && errors.entry_type && (

@@ -5,12 +5,7 @@ import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { deleteFormula } from '../../store/slices/formulasSlice';
 import { IfMaster } from '../../components/IfMaster';
-
-interface FormulasListProps {
-  formulas: any[];
-  onCreateFormula: () => void;
-  onEditFormula: (formula: any) => void;
-}
+import { FormulasListProps, Formula, FormulaDisplayItem, FormulaComponentDisplay } from '@/types/product';
 
 export const FormulasList: React.FC<FormulasListProps> = ({ 
   formulas, 
@@ -20,7 +15,7 @@ export const FormulasList: React.FC<FormulasListProps> = ({
   const dispatch = useAppDispatch();
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const handleDeleteFormula = (formula: any) => {
+  const handleDeleteFormula = (formula: Formula) => {
     Alert.alert(
       'Delete Formula',
       `Are you sure you want to delete "${formula.name}"?`,
@@ -45,17 +40,7 @@ export const FormulasList: React.FC<FormulasListProps> = ({
     );
   };
 
-  const renderComponentItem = ({ item }: { item: any }) => (
-    <View style={styles.componentItem}>
-      <View style={styles.componentHeader}>
-        <Package size={14} color="#6b7280" />
-        <Text style={styles.componentName} numberOfLines={1}>{item.component_name}</Text>
-      </View>
-      <Text style={styles.componentQuantity}>{item.quantity} units</Text>
-    </View>
-  );
-
-  const renderFormulaItem = ({ item }: { item: any }) => (
+  const renderFormulaItem = ({ item }: { item: FormulaDisplayItem }) => (
     <View style={styles.itemCard}>
       <View style={styles.itemHeader}>
         <View style={styles.itemInfo}>
@@ -119,7 +104,7 @@ export const FormulasList: React.FC<FormulasListProps> = ({
             style={styles.componentsScrollView}
             contentContainerStyle={styles.componentsScrollContent}
           >
-            {item.components.map((component: any, index: number) => (
+            {item.components.map((component: FormulaComponentDisplay, index: number) => (
               <View key={index} style={styles.componentItem}>
                 <View style={styles.componentHeader}>
                   <Package size={14} color="#6b7280" />

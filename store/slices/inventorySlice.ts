@@ -1,65 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { API_URL } from '../../utils/constant';
-
-export interface InventoryEntry {
-  id: number;
-  product_id: number;
-  quantity: number;
-  entry_type: 'manual_in' | 'manual_out' | 'manufacturing_in' | 'manufacturing_out';
-  timestamp: string;
-  user_id: number;
-  location_id: number;
-  notes?: string;
-  reference_id?: string;
-  created_at: string;
-  updated_at: string;
-  product_name: string;
-  location_name: string;
-  username?: string;  // Username of the user who created the entry
-}
-
-export interface InventoryBalance {
-  product_id: number;
-  product_name: string;
-  total_quantity: number;
-  location_id: number;
-  location_name: string;
-  price_per_unit: number;  
-  total_price: number; 
-}
-
-// API response interface
-interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data: T;
-  meta?: {
-    page: number;
-    limit: number;
-    total: number;
-    pages: number;
-  };
-  timestamp?: string;
-}
-
-export interface InventoryState {
-  entries: InventoryEntry[];
-  userEntries: InventoryEntry[];
-  balance: InventoryBalance[];
-  selected: InventoryEntry | null;
-  loading: boolean;
-  error: string | null;
-  meta: {
-    page: number;
-    limit: number;
-    total: number;
-    pages: number;
-  };
-  balanceMeta: {
-    totalProducts: number;
-  };
-}
+import { ApiResponse, InventoryEntry, InventoryBalance, InventoryState, FetchInventoryParams, FetchUserEntriesParams, CreateInventoryEntryData, UpdateInventoryEntryData } from '@/types/inventory';
+import { getAuthHeader } from '@/utils/authHelper';
 
 const initialState: InventoryState = {
   entries: [],
@@ -79,20 +22,6 @@ const initialState: InventoryState = {
   }
 };
 
-// Fetch all inventory entries with optional pagination
-export interface FetchInventoryParams {
-  page?: number;
-  limit?: number;
-  product_id?: number;
-  entry_type?: 'manual_in' | 'manual_out' | 'manufacturing_in' | 'manufacturing_out';
-  start_date?: string;
-  end_date?: string;
-}
-
-// Helper to get authorization header with token
-const getAuthHeader = (token: string) => ({
-  headers: { Authorization: `Bearer ${token}` }
-});
 
 export const fetchInventoryEntries = createAsyncThunk(
   'inventory/fetchEntries',
@@ -175,12 +104,6 @@ export const fetchInventoryBalance = createAsyncThunk(
   }
 );
 
-// Fetch user-specific inventory entries
-export interface FetchUserEntriesParams {
-  page?: number;
-  limit?: number;
-}
-
 export const fetchUserEntries = createAsyncThunk(
   'inventory/fetchUserEntries',
   async (params: FetchUserEntriesParams = {}, { rejectWithValue, getState }) => {
@@ -209,15 +132,6 @@ export const fetchUserEntries = createAsyncThunk(
   }
 );
 
-// Create inventory entry
-export interface CreateInventoryEntryData {
-  product_id: number;
-  quantity: number;
-  entry_type: 'manual_in' | 'manual_out' | 'manufacturing_in' | 'manufacturing_out';
-  location_id: number;
-  notes?: string;
-  reference_id?: string;
-}
 
 export const createInventoryEntry = createAsyncThunk(
   'inventory/createEntry',
@@ -240,12 +154,6 @@ export const createInventoryEntry = createAsyncThunk(
     }
   }
 );
-
-// Update inventory entry (master only)
-export interface UpdateInventoryEntryData {
-  id: number;
-  data: Partial<CreateInventoryEntryData>;
-}
 
 export const updateInventoryEntry = createAsyncThunk(
   'inventory/updateEntry',

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Settings as SettingsIcon, User, Users, LogOut, Shield, Bell, Info, ChevronRight, TriangleAlert as AlertTriangle } from 'lucide-react-native';
+import { Settings as SettingsIcon, User, Users, LogOut, Shield, Bell, Info, ChevronRight, TriangleAlert as AlertTriangle, TestTube } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
@@ -9,6 +9,8 @@ import { IfMaster } from '../../components/IfMaster';
 import { logout, clearAuth } from '../../store/slices/authSlice';
 import { EditProfileForm } from '../../components/modals/EditProfileForm';
 import Modal from 'react-native-modal';
+import { UserRole } from '@/types/user';
+import CrashTestComponent from '@/components/CrashTestComponent';
 
 export default function Settings() {
   const router = useRouter();
@@ -17,9 +19,11 @@ export default function Settings() {
   const { alerts, notifications } = useAppSelector(state => state.alerts);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [showCrashTesting, setShowCrashTesting] = useState(false);
 
-
-  const isMaster = user?.role === 'master';
+  const { width: screenWidth } = Dimensions.get('window');
+  const isMobileWidth = screenWidth < 768; // Consider mobile if width < 768px
+  const isMaster = user?.role === UserRole.MASTER;
 
   const unresolvedAlertsCount = notifications.filter(notification => !notification.is_read).length;
 
@@ -248,6 +252,20 @@ export default function Settings() {
           </View>
         </View>
 
+        {__DEV__ && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Developer Tools</Text>
+            <View style={styles.settingsGroup}>
+              <SettingsItem
+                icon={<TestTube size={20} color="#8b5cf6" />}
+                title="Crash Testing"
+                subtitle="Test error handling and crash prevention"
+                onPress={() => setShowCrashTesting(true)}
+              />
+            </View>
+          </View>
+        )}
+
         <View style={styles.section}>
           <View style={styles.settingsGroup}>
             <SettingsItem
@@ -271,26 +289,53 @@ export default function Settings() {
           onBackButtonPress={() => setShowEditProfileModal(false)}
           animationIn="slideInUp"
           animationOut="slideOutDown"
-          style={styles.modalContainer}
+          style={styles.editProfileModalContainer}
+          avoidKeyboard={true}
         >
-          <View style={styles.modalContent}>
-            <EditProfileForm
-              isOwnProfile={true}
-              user={user}
-              onCancel={() => setShowEditProfileModal(false)}
-              onSuccess={() => {
-                setShowEditProfileModal(false);
-                // Success message
-                Alert.alert(
-                  'Profile Updated',
-                  'Your profile has been successfully updated.'
-                );
-              }}
-              fieldsToShow={['name', 'email', 'password', 'username']} // Exclude 'role' for self-editing
-            />
+          <View style={styles.editProfileModalContent}>
+            <ScrollView 
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.editProfileScrollContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              <EditProfileForm
+                isOwnProfile={true}
+                user={user}
+                onCancel={() => setShowEditProfileModal(false)}
+                onSuccess={() => {
+                  setShowEditProfileModal(false);
+                  // Success message
+                  Alert.alert(
+                    'Profile Updated',
+                    'Your profile has been successfully updated.'
+                  );
+                }}
+                fieldsToShow={['name', 'email', 'password', 'username']} // Exclude 'role' for self-editing
+              />
+            </ScrollView>
           </View>
         </Modal>
       )}
+
+      {/* Crash Testing Modal */}
+      <Modal
+        isVisible={showCrashTesting}
+        onBackdropPress={() => setShowCrashTesting(false)}
+        onBackButtonPress={() => setShowCrashTesting(false)}
+        animationIn="slideInUp"
+        animationOut="slideOutDown"
+        style={styles.modalContainer}
+      >
+        <View style={styles.modalContent}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <Text style={{ fontSize: 20, fontWeight: '700', color: '#1f2937' }}>Crash Testing</Text>
+            <TouchableOpacity onPress={() => setShowCrashTesting(false)}>
+              <Text style={{ fontSize: 16, color: '#6b7280' }}>Close</Text>
+            </TouchableOpacity>
+          </View>
+          <CrashTestComponent onTestComplete={() => {}} />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -453,5 +498,26 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     padding: 16,
     maxHeight: '90%',
+  },
+  editProfileModalContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin: 20,
+  },
+  editProfileModalContent: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    maxHeight: '85%',
+    width: '100%',
+    maxWidth: 500,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  editProfileScrollContent: {
+    padding: 20,
+    paddingBottom: 40,
   },
 });

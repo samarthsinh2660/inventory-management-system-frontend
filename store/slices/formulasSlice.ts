@@ -1,23 +1,10 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { API_URL } from '../../utils/constant';
-
+import { Formula, FormulaComponent, FormulaComponentData, CreateFormulaData, UpdateFormulaData, FormulasState } from '@/types/product';
+import { getAuthHeader } from '@/utils/authHelper';
 // Updated interface to match API response
-interface FormulaComponent {
-  id: number;
-  component_id: number;
-  component_name: string;
-  quantity: number;
-}
 
-export interface Formula {
-  id: number;
-  name: string;
-  description: string | null;
-  components: FormulaComponent[];
-  created_at: string;
-  updated_at: string;
-}
 
 // API response interface
 interface ApiResponse<T> {
@@ -29,16 +16,6 @@ interface ApiResponse<T> {
   };
 }
 
-export interface FormulasState {
-  list: Formula[];
-  selected: Formula | null;
-  relatedProducts: any[];
-  loading: boolean;
-  error: string | null;
-  meta: {
-    count: number;
-  };
-}
 
 const initialState: FormulasState = {
   list: [],
@@ -51,10 +28,7 @@ const initialState: FormulasState = {
   }
 };
 
-// Helper to get authorization header with token
-const getAuthHeader = (token: string) => ({
-  headers: { Authorization: `Bearer ${token}` }
-});
+
 
 // GET all formulas
 export const fetchFormulas = createAsyncThunk(
@@ -125,16 +99,6 @@ export const fetchFormulaProducts = createAsyncThunk(
   }
 );
 
-// Define CreateFormulaData interface
-export interface CreateFormulaData {
-  name: string;
-  description?: string | null;
-  components: {
-    component_id: number;
-    quantity: number;
-  }[];
-}
-
 // POST create formula
 export const createFormula = createAsyncThunk(
   'formulas/createFormula',
@@ -157,12 +121,6 @@ export const createFormula = createAsyncThunk(
     }
   }
 );
-
-// Define UpdateFormulaData interface
-export interface UpdateFormulaData {
-  id: number;
-  data: Partial<CreateFormulaData>;
-}
 
 // PUT update formula
 export const updateFormula = createAsyncThunk(
@@ -209,16 +167,6 @@ export const deleteFormula = createAsyncThunk(
     }
   }
 );
-
-// Define FormulaComponentData interface
-export interface FormulaComponentData {
-  formulaId: number;
-  componentData: {
-    id?: number;
-    component_id: number;
-    quantity: number;
-  };
-}
 
 // PUT add/update formula component
 export const updateFormulaComponent = createAsyncThunk(

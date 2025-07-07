@@ -8,7 +8,7 @@ import { fetchUsers, deleteUser } from '../../store/slices/usersSlice';
 import { CreateUserModal } from '../../components/modals/CreateUserModal';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import Toast from 'react-native-toast-message';
-import { User } from '../../store/slices/authSlice';
+import { User } from '@/types/user';
 
 export default function Users() {
   const dispatch = useAppDispatch();

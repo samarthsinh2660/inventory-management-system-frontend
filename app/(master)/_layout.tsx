@@ -3,10 +3,11 @@ import { Tabs } from 'expo-router';
 import { LayoutDashboard, Package, CirclePlus as PlusCircle, Settings, ChartBar as BarChart3, FileText } from 'lucide-react-native';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { AuthGuard } from '../../components/AuthGuard';
+import { UserRole } from '@/types/user';
 
 export default function TabLayout() {
   const user = useAppSelector(state => state.auth.user);
-  const isMaster = user?.role === 'master';
+  const isMaster = user?.role === UserRole.MASTER;
 
   return (
     <AuthGuard>

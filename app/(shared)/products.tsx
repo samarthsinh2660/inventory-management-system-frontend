@@ -15,6 +15,7 @@ import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ProductFiltersModal } from '@/components/modals/ProductFiltersModal';
 import { CustomSearchBar } from '@/components/CustomSearchBar';
 import ProductDetailsModal from '../../components/modals/ProductDetailsModal';
+import { Product, Location, Subcategory, Formula, TabType, FilterState } from '@/types/product';
 import { LocationsList } from '../../components/product/LocationsList';
 import { SubcategoriesList } from '../../components/product/SubcategoriesList';
 import { FormulasList } from '../../components/product/FormulasList';
@@ -22,15 +23,6 @@ import { CreateLocationModal } from '../../components/modals/CreateLocationModal
 import { CreateSubcategoryModal } from '../../components/modals/CreateSubcategoryModal';
 import { CreateFormulaModal } from '../../components/modals/CreateFormulaModal';
 
-interface FilterState {
-  category: string;
-  subcategory_id: number;
-  location_id: number;
-  source_type: string;
-  formula_id: number;
-}
-
-type ViewMode = 'products' | 'locations' | 'subcategories' | 'formulas';
 
 export default function Products() {
   const router = useRouter();
@@ -45,7 +37,7 @@ export default function Products() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [showProductDetails, setShowProductDetails] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('products');
+  const [viewMode, setViewMode] = useState<TabType>('products');
   
   // Create/Edit Modal States
   const [showCreateLocation, setShowCreateLocation] = useState(false);
@@ -69,7 +61,7 @@ export default function Products() {
     setSearchTerm(text);
   };
 
-  const applyFilters = (product: any) => {
+  const applyFilters = (product: Product) => {
     // Search term filter
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          product.category.toLowerCase().includes(searchTerm.toLowerCase());
@@ -141,7 +133,7 @@ export default function Products() {
     setShowCreateLocation(true);
   };
 
-  const handleEditLocation = (location: any) => {
+  const handleEditLocation = (location: Location) => {
     setEditingLocation(location);
     setShowCreateLocation(true);
   };
@@ -151,7 +143,7 @@ export default function Products() {
     setShowCreateSubcategory(true);
   };
 
-  const handleEditSubcategory = (subcategory: any) => {
+  const handleEditSubcategory = (subcategory: Subcategory) => {
     setEditingSubcategory(subcategory);
     setShowCreateSubcategory(true);
   };
@@ -161,7 +153,7 @@ export default function Products() {
     setShowCreateFormula(true);
   };
 
-  const handleEditFormula = (formula: any) => {
+  const handleEditFormula = (formula: Formula) => {
     setEditingFormula(formula);
     setShowCreateFormula(true);
   };
@@ -361,132 +353,132 @@ export default function Products() {
             </TouchableOpacity>
           ) : (
             <>
-              <Text style={styles.title}>Products</Text>
-              <Text style={styles.subtitle}>
-                {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} 
-                {activeFiltersCount > 0 && ` (${activeFiltersCount} filter${activeFiltersCount !== 1 ? 's' : ''} applied)`}
-              </Text>
+          <Text style={styles.title}>Products</Text>
+          <Text style={styles.subtitle}>
+            {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} 
+            {activeFiltersCount > 0 && ` (${activeFiltersCount} filter${activeFiltersCount !== 1 ? 's' : ''} applied)`}
+          </Text>
             </>
           )}
         </View>
         {viewMode === 'products' && (
-          <IfMaster>
-            <TouchableOpacity 
-              style={styles.addButton}
-              onPress={() => router.push('/create-product')}
-            >
-              <Plus size={20} color="white" />
-            </TouchableOpacity>
-          </IfMaster>
+        <IfMaster>
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={() => router.push('/create-product')}
+          >
+            <Plus size={20} color="white" />
+          </TouchableOpacity>
+        </IfMaster>
         )}
       </View>
 
       {viewMode === 'products' ? (
         <>
-          <View style={styles.searchContainer}>
-            <CustomSearchBar
-              placeholder="Search products..."
-              value={searchTerm}
-              onChangeText={handleSearChange}
-              onClear={() => setSearchTerm('')}
-            />
-            <TouchableOpacity 
-              style={[styles.filterButton, activeFiltersCount > 0 && styles.filterButtonActive]}
-              onPress={() => setShowFilters(true)}
-            >
-              <Filter size={20} color={activeFiltersCount > 0 ? "#2563eb" : "#6b7280"} />
-              {activeFiltersCount > 0 && (
-                <View style={styles.filterBadge}>
-                  <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.quickFiltersContainer}>
-            <Text style={styles.quickFiltersLabel}>Quick Filters:</Text>
-            <View style={styles.quickFilters}>
-              <TouchableOpacity
-                style={[
-                  styles.quickFilterButton,
-                  filters.source_type === 'manufacturing' && styles.quickFilterButtonActive
-                ]}
-                onPress={() => setQuickFilter('manufacturing')}
-              >
-                <Text style={[
-                  styles.quickFilterText,
-                  filters.source_type === 'manufacturing' && styles.quickFilterTextActive
-                ]}>
-                  Manufacturing
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.quickFilterButton,
-                  filters.source_type === 'trading' && styles.quickFilterButtonActive
-                ]}
-                onPress={() => setQuickFilter('trading')}
-              >
-                <Text style={[
-                  styles.quickFilterText,
-                  filters.source_type === 'trading' && styles.quickFilterTextActive
-                ]}>
-                  Trading
-                </Text>
-              </TouchableOpacity>
-              {activeFiltersCount > 0 && (
-                <TouchableOpacity
-                  style={styles.clearFiltersButton}
-                  onPress={clearAllFilters}
-                >
-                  <X size={16} color="#ef4444" />
-                  <Text style={styles.clearFiltersText}>Clear All</Text>
-                </TouchableOpacity>
-              )}
+      <View style={styles.searchContainer}>
+        <CustomSearchBar
+          placeholder="Search products..."
+          value={searchTerm}
+          onChangeText={handleSearChange}
+          onClear={() => setSearchTerm('')}
+        />
+        <TouchableOpacity 
+          style={[styles.filterButton, activeFiltersCount > 0 && styles.filterButtonActive]}
+          onPress={() => setShowFilters(true)}
+        >
+          <Filter size={20} color={activeFiltersCount > 0 ? "#2563eb" : "#6b7280"} />
+          {activeFiltersCount > 0 && (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
             </View>
-          </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.quickFiltersContainer}>
+        <Text style={styles.quickFiltersLabel}>Quick Filters:</Text>
+        <View style={styles.quickFilters}>
+          <TouchableOpacity
+            style={[
+              styles.quickFilterButton,
+              filters.source_type === 'manufacturing' && styles.quickFilterButtonActive
+            ]}
+            onPress={() => setQuickFilter('manufacturing')}
+          >
+            <Text style={[
+              styles.quickFilterText,
+              filters.source_type === 'manufacturing' && styles.quickFilterTextActive
+            ]}>
+              Manufacturing
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.quickFilterButton,
+              filters.source_type === 'trading' && styles.quickFilterButtonActive
+            ]}
+            onPress={() => setQuickFilter('trading')}
+          >
+            <Text style={[
+              styles.quickFilterText,
+              filters.source_type === 'trading' && styles.quickFilterTextActive
+            ]}>
+              Trading
+            </Text>
+          </TouchableOpacity>
+          {activeFiltersCount > 0 && (
+            <TouchableOpacity
+              style={styles.clearFiltersButton}
+              onPress={clearAllFilters}
+            >
+              <X size={16} color="#ef4444" />
+              <Text style={styles.clearFiltersText}>Clear All</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
 
           {renderManagementViewButtons()}
 
-          <FlatList
-            data={filteredProducts}
-            renderItem={renderProduct}
-            keyExtractor={(item) => item.id.toString()}
-            style={styles.list}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>
-                  {searchTerm || activeFiltersCount > 0 ? 'No products match your search' : 'No products found'}
-                </Text>
-                {(searchTerm || activeFiltersCount > 0) && (
-                  <TouchableOpacity 
-                    style={styles.clearSearchButton}
-                    onPress={() => {
-                      setSearchTerm('');
-                      clearAllFilters();
-                    }}
-                  >
-                    <Text style={styles.clearSearchButtonText}>Clear Search & Filters</Text>
-                  </TouchableOpacity>
-                )}
-                <IfMaster>
-                  {!searchTerm && activeFiltersCount === 0 && (
-                    <TouchableOpacity 
-                      style={styles.createFirstButton}
-                      onPress={() => router.push('/create-product')}
-                    >
-                      <Text style={styles.createFirstButtonText}>Create First Product</Text>
-                    </TouchableOpacity>
-                  )}
-                </IfMaster>
-              </View>
-            }
-          />
+      <FlatList
+        data={filteredProducts}
+        renderItem={renderProduct}
+        keyExtractor={(item) => item.id.toString()}
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              {searchTerm || activeFiltersCount > 0 ? 'No products match your search' : 'No products found'}
+            </Text>
+            {(searchTerm || activeFiltersCount > 0) && (
+              <TouchableOpacity 
+                style={styles.clearSearchButton}
+                onPress={() => {
+                  setSearchTerm('');
+                  clearAllFilters();
+                }}
+              >
+                <Text style={styles.clearSearchButtonText}>Clear Search & Filters</Text>
+              </TouchableOpacity>
+            )}
+            <IfMaster>
+              {!searchTerm && activeFiltersCount === 0 && (
+                <TouchableOpacity 
+                  style={styles.createFirstButton}
+                  onPress={() => router.push('/create-product')}
+                >
+                  <Text style={styles.createFirstButtonText}>Create First Product</Text>
+                </TouchableOpacity>
+              )}
+            </IfMaster>
+          </View>
+        }
+      />
         </>
       ) : (
         <View style={styles.managementContentContainer}>

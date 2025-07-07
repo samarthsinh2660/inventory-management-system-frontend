@@ -19,6 +19,7 @@ import {
   getInStockProductsCount, 
   getEntryCountsByType 
 } from '../../utils/helperFunctions';
+import { UserRole } from '@/types/user';
 
 const { width } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -34,7 +35,7 @@ export default function Dashboard() {
   const { alerts, notifications } = useAppSelector(state => state.alerts);
   const [refreshing, setRefreshing] = React.useState(false);
 
-  const isMaster = user?.role === 'master';
+  const isMaster = user?.role === UserRole.MASTER;
 
   // Calculate unresolved alerts count from notifications
   const unresolvedAlertsCount = notifications.filter(notification => !notification.is_read).length;
@@ -228,7 +229,7 @@ export default function Dashboard() {
               <StatCard
                 title="Total Users"
                 value={users.length}
-                subtitle={`${users.filter(u => u.role === 'master').length} masters`}
+                subtitle={`${users.filter(u => u.role === UserRole.MASTER).length} masters`}
                 icon={<Users size={20} color="#8b5cf6" />}
                 color="#8b5cf6"
                 trend="neutral"

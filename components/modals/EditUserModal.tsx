@@ -1,14 +1,9 @@
 import React from 'react';
 import { View, StyleSheet, Modal, ScrollView } from 'react-native';
-import { User } from '../../store/slices/authSlice';
 import { EditProfileForm } from './EditProfileForm';
+import { EditUserModalProps } from '@/types/user';
 
-interface EditUserModalProps {
-  isVisible: boolean;
-  onClose: () => void;
-  user: User;
-  onSuccess?: () => void;
-}
+
 
 export const EditUserModal = ({ isVisible, onClose, user, onSuccess }: EditUserModalProps) => {
   const handleSuccess = () => {

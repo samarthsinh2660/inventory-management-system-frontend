@@ -3,15 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, FlatList }
 import { TextInput, Chip } from 'react-native-paper';
 import { X, Search, Filter, Package, DollarSign, TrendingUp, TrendingDown, AlertTriangle, ArrowUpDown } from 'lucide-react-native';
 import { useAppSelector } from '../../hooks/useAppSelector';
-
-interface AllBalancesModalProps {
-  visible: boolean;
-  onClose: () => void;
-}
-
-type SortField = 'name' | 'quantity' | 'value' | 'price' | 'location';
-type SortOrder = 'asc' | 'desc';
-type StockFilter = 'all' | 'low' | 'out' | 'normal';
+import { AllBalancesModalProps, SortField, SortOrder, StockFilter } from '@/types/inventory';
+import { BalanceModalItem } from '@/types/general';
 
 export default function AllBalancesModal({ visible, onClose }: AllBalancesModalProps) {
   const products = useAppSelector(state => state.products.list || []);
@@ -148,7 +141,7 @@ export default function AllBalancesModal({ visible, onClose }: AllBalancesModalP
     }
   };
 
-  const renderBalanceItem = ({ item }: { item: any }) => (
+  const renderBalanceItem = ({ item }: { item: BalanceModalItem }) => (
     <View style={styles.balanceItem}>
       <View style={styles.itemHeader}>
         <View style={styles.itemInfo}>

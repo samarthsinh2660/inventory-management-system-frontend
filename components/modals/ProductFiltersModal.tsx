@@ -11,24 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, Check } from 'lucide-react-native';
 import { Picker } from '@react-native-picker/picker';
-
-interface FilterState {
-  category: string;
-  subcategory_id: number;
-  location_id: number;
-  source_type: string;
-  formula_id: number;
-}
-
-interface ProductFiltersModalProps {
-  isVisible: boolean;
-  onClose: () => void;
-  filters: FilterState;
-  onApplyFilters: (filters: FilterState) => void;
-  subcategories: any[];
-  locations: any[];
-  formulas: any[];
-}
+import { ProductFiltersModalProps, ProductFiltersState } from '@/types/general';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -41,7 +24,7 @@ export function ProductFiltersModal({
   locations,
   formulas,
 }: ProductFiltersModalProps) {
-  const [tempFilters, setTempFilters] = useState<FilterState>(filters);
+  const [tempFilters, setTempFilters] = useState<ProductFiltersState>(filters);
 
   const handleApply = () => {
     onApplyFilters(tempFilters);
@@ -49,7 +32,7 @@ export function ProductFiltersModal({
   };
 
   const handleReset = () => {
-    const resetFilters: FilterState = {
+    const resetFilters: ProductFiltersState = {
       category: '',
       subcategory_id: 0,
       location_id: 0,
@@ -87,8 +70,8 @@ export function ProductFiltersModal({
             <View style={styles.pickerContainer}>
               <Picker
                 selectedValue={tempFilters.category}
-                onValueChange={(value) =>
-                  setTempFilters(prev => ({ ...prev, category: value }))
+                onValueChange={(value: string) =>
+                  setTempFilters((prev: ProductFiltersState) => ({ ...prev, category: value }))
                 }
                 style={styles.picker}
               >
@@ -106,8 +89,8 @@ export function ProductFiltersModal({
             <View style={styles.pickerContainer}>
               <Picker
                 selectedValue={tempFilters.subcategory_id}
-                onValueChange={(value) =>
-                  setTempFilters(prev => ({ ...prev, subcategory_id: value }))
+                onValueChange={(value: number) =>
+                  setTempFilters((prev: ProductFiltersState) => ({ ...prev, subcategory_id: value }))
                 }
                 style={styles.picker}
               >
@@ -129,8 +112,8 @@ export function ProductFiltersModal({
             <View style={styles.pickerContainer}>
               <Picker
                 selectedValue={tempFilters.location_id}
-                onValueChange={(value) =>
-                  setTempFilters(prev => ({ ...prev, location_id: value }))
+                onValueChange={(value: number) =>
+                  setTempFilters((prev: ProductFiltersState) => ({ ...prev, location_id: value }))
                 }
                 style={styles.picker}
               >
@@ -152,8 +135,8 @@ export function ProductFiltersModal({
             <View style={styles.pickerContainer}>
               <Picker
                 selectedValue={tempFilters.source_type}
-                onValueChange={(value) =>
-                  setTempFilters(prev => ({ ...prev, source_type: value }))
+                onValueChange={(value: string) =>
+                  setTempFilters((prev: ProductFiltersState) => ({ ...prev, source_type: value }))
                 }
                 style={styles.picker}
               >
@@ -175,8 +158,8 @@ export function ProductFiltersModal({
             <View style={styles.pickerContainer}>
               <Picker
                 selectedValue={tempFilters.formula_id}
-                onValueChange={(value) =>
-                  setTempFilters(prev => ({ ...prev, formula_id: value }))
+                onValueChange={(value: number) =>
+                  setTempFilters((prev: ProductFiltersState) => ({ ...prev, formula_id: value }))
                 }
                 style={styles.picker}
               >

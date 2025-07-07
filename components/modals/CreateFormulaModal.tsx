@@ -8,15 +8,10 @@ import { X, Plus, Minus } from 'lucide-react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
-import { createFormula, updateFormula, CreateFormulaData } from '../../store/slices/formulasSlice';
+import { createFormula, updateFormula} from '../../store/slices/formulasSlice';
 import Toast from 'react-native-toast-message';
-
-interface CreateFormulaModalProps {
-  isVisible: boolean;
-  onClose: () => void;
-  onSuccess?: (formula: any) => void;
-  editingFormula?: any;
-}
+import { CreateFormulaData } from '@/types/product';
+import { CreateFormulaModalProps } from '@/types/general';
 
 const validationSchema = Yup.object({
   name: Yup.string().required('Name is required'),
@@ -69,13 +64,13 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
         });
       } else {
         result = await dispatch(createFormula(formulaData)).unwrap();
-        Toast.show({
-          type: 'success',
-          text1: 'Success',
-          text2: 'Formula created successfully',
-        });
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Formula created successfully',
+      });
       }
-      onSuccess?.(result);
+      onSuccess?.(result.data);
       onClose();
     } catch (error: any) {
       Toast.show({
@@ -92,7 +87,7 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
         name: editingFormula.name || '',
         description: editingFormula.description || '',
         components: editingFormula.components && editingFormula.components.length > 0 
-          ? editingFormula.components.map((comp: any, index: number) => ({
+          ? editingFormula.components.map((comp, index: number) => ({
               component_id: comp.component_id || 0,
               quantity: comp.quantity || 0,
             }))
@@ -153,7 +148,7 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
               <FieldArray name="components">
                 {({ push, remove }) => (
                   <View>
-                    {values.components.map((component: any, index: number) => (
+                    {values.components.map((component, index: number) => (
                       <View key={index} style={styles.componentRow}>
                         <View style={styles.pickerContainer}>
                           <Text style={styles.label}>Product*</Text>

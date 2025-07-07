@@ -10,11 +10,7 @@ import { signup } from '../../store/slices/authSlice';
 import { createUser, fetchUsers } from '../../store/slices/usersSlice';
 import Toast from 'react-native-toast-message';
 import { useAppSelector } from '../../hooks/useAppSelector';
-
-interface CreateUserModalProps {
-  isVisible: boolean;
-  onClose: () => void;
-}
+import { CreateUserData, UserRole, CreateUserModalProps, HandleSubmitProps } from '@/types/user';
 
 const validationSchema = Yup.object({
   name: Yup.string().required('Name is required'),
@@ -34,13 +30,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   // Determine if this is a sign-up or user creation based on if there's a current user
   const isUserCreation = !!currentUser;
 
-  const handleSubmit = async (values: { 
-    name: string; 
-    username: string; 
-    password: string; 
-    email?: string; 
-    role: 'master' | 'employee' 
-  }) => {
+  const handleSubmit = async (values: HandleSubmitProps) => {
     try {
       // Ensure email is always a string (empty if not provided)
       const userData = {
@@ -50,10 +40,10 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
       
       if (isUserCreation) {
         // If a user is logged in, use createUser from usersSlice
-        await dispatch(createUser(userData)).unwrap();
+        await dispatch(createUser(userData as CreateUserData)).unwrap();
       } else {
         // If no user is logged in, use signup from authSlice
-        await dispatch(signup(userData)).unwrap();
+        await dispatch(signup(userData as CreateUserData)).unwrap();
       }
       
       // Refresh users list if it's user creation by an admin
@@ -92,7 +82,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
             username: '', 
             password: '', 
             email: '', 
-            role: 'employee' 
+            role: UserRole.EMPLOYEE 
           }}
           validationSchema={validationSchema}
           onSubmit={handleSubmit}
@@ -157,14 +147,14 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   <TouchableOpacity
                     style={[
                       styles.roleButton,
-                      values.role === 'employee' && styles.activeRoleButton
+                      values.role === UserRole.EMPLOYEE && styles.activeRoleButton
                     ]}
-                    onPress={() => setFieldValue('role', 'employee')}
+                    onPress={() => setFieldValue('role', UserRole.EMPLOYEE)}
                   >
                     <Text 
                       style={[
                         styles.roleButtonText,
-                        values.role === 'employee' && styles.activeRoleButtonText
+                        values.role === UserRole.EMPLOYEE && styles.activeRoleButtonText
                       ]}
                     >
                       Employee
@@ -173,14 +163,14 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   <TouchableOpacity
                     style={[
                       styles.roleButton,
-                      values.role === 'master' && styles.activeRoleButton
+                      values.role === UserRole.MASTER && styles.activeRoleButton
                     ]}
-                    onPress={() => setFieldValue('role', 'master')}
+                    onPress={() => setFieldValue('role', UserRole.MASTER)}
                   >
                     <Text 
                       style={[
                         styles.roleButtonText,
-                        values.role === 'master' && styles.activeRoleButtonText
+                        values.role === UserRole.MASTER && styles.activeRoleButtonText
                       ]}
                     >
                       Master

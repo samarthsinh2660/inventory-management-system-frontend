@@ -9,7 +9,7 @@ export default function TabLayout() {
 
   return (
     <AuthGuard>
-      <Tabs
+    <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: '#2563eb',

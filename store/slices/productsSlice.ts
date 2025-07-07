@@ -1,26 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { API_URL } from '../../utils/constant';
-
-// Product interface updated to match API response
-export interface Product {
-  id: number;
-  name: string;
-  unit: string;
-  price: string; // API returns as string like "150.00"
-  category: 'raw' | 'semi' | 'finished';
-  source_type: 'manufacturing' | 'trading';
-  subcategory_id: number;
-  location_id: number;
-  min_stock_threshold: number | null;
-  product_formula_id: number | null; // Renamed from formula_id
-  created_at: string;
-  updated_at: string;
-  // Joined fields in responses
-  subcategory_name?: string;
-  location_name?: string;
-  product_formula_name?: string; // Added for formula name
-}
+import { Product, ProductSearchParams, CreateProductData, UpdateProductData, ProductsState, ProductFetchParams } from '@/types/product';
+import { getAuthHeader } from '@/utils/authHelper';
 
 // API response interface
 interface ApiResponse<T> {
@@ -37,19 +19,6 @@ interface ApiResponse<T> {
   timestamp: string;
 }
 
-export interface ProductsState {
-  list: Product[];
-  selected: Product | null;
-  loading: boolean;
-  error: string | null;
-  meta: {
-    count: number;
-    total?: number;
-    page?: number;
-    limit?: number;
-    pages?: number;
-  };
-}
 
 const initialState: ProductsState = {
   list: [],
@@ -61,16 +30,10 @@ const initialState: ProductsState = {
   },
 };
 
-// Helper to get authorization header with token
-const getAuthHeader = (token: string) => ({
-  headers: { Authorization: `Bearer ${token}` }
-});
-
-// Updated API thunks
 
 export const fetchProducts = createAsyncThunk(
   'products/fetchProducts',
-  async (params: { page?: number; limit?: number; subcategory_id?: number; name?: string } = {}, { rejectWithValue, getState }) => {
+  async (params: ProductFetchParams = {}, { rejectWithValue, getState }) => {
     try {
       const state = getState() as { auth: { accessToken: string | null } };
       const token = state.auth.accessToken;
@@ -141,19 +104,6 @@ export const searchProducts = createAsyncThunk(
   }
 );
 
-export interface ProductSearchParams {
-  search?: string;
-  category?: 'raw' | 'semi' | 'finished';
-  subcategory_id?: number;
-  location_id?: number;
-  source_type?: 'manufacturing' | 'trading';
-  formula_id?: number;
-  component_id?: number;
-  is_parent?: boolean;
-  is_component?: boolean;
-  page?: number;
-  limit?: number;
-}
 
 export const createProduct = createAsyncThunk(
   'products/createProduct',
@@ -177,18 +127,6 @@ export const createProduct = createAsyncThunk(
   }
 );
 
-export interface CreateProductData {
-  name: string;
-  unit: string;
-  category: 'raw' | 'semi' | 'finished';
-  source_type: 'manufacturing' | 'trading';
-  subcategory_id: number;
-  location_id: number;
-  min_stock_threshold?: number | null;
-  price?: number;
-  product_formula_id?: number | null;
-}
-
 export const updateProduct = createAsyncThunk(
   'products/updateProduct',
   async ({ id, data }: UpdateProductData, { rejectWithValue, getState }) => {
@@ -210,11 +148,6 @@ export const updateProduct = createAsyncThunk(
     }
   }
 );
-
-export interface UpdateProductData {
-  id: number;
-  data: Partial<Omit<CreateProductData, 'id'>>;
-}
 
 export const deleteProduct = createAsyncThunk(
   'products/deleteProduct',

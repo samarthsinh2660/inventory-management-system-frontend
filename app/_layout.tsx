@@ -3,6 +3,7 @@ import '../utils/backHandlerPolyfill';
 
 import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { StatusBar } from 'expo-status-bar';
 import { Provider as ReduxProvider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
@@ -48,14 +49,16 @@ function AppContent() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(master)" options={{ headerShown: false }} />
         <Stack.Screen name="(employee)" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)/user-management" options={{ headerShown: false }} />
         <Stack.Screen name="(user)/users" options={{ headerShown: false }} />
         <Stack.Screen name="(alerts)/alerts" options={{ headerShown: false }} />
         <Stack.Screen name="(shared)/statistics" options={{ headerShown: false }} />
         <Stack.Screen name="(shared)/inventory" options={{ headerShown: false }} />
         <Stack.Screen name="(shared)/audit" options={{ headerShown: false }} />
         <Stack.Screen name="(shared)/settings" options={{ headerShown: false }} />
+        <Stack.Screen name="create-product" options={{ headerShown: false }} />
+        <Stack.Screen name="demo-info" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
       </Stack>
       <StatusBar style="auto" />
@@ -67,12 +70,14 @@ function AppContent() {
 export default function RootLayout() {
   useFrameworkReady();
   return (
-    <ReduxProvider store={store}>
-      <PersistGate loading={<LoadingSpinner />} persistor={persistor}>
-        <PaperProvider theme={theme}>
-          <AppContent />
-        </PaperProvider>
-      </PersistGate>
-    </ReduxProvider>
+    <ErrorBoundary>
+      <ReduxProvider store={store}>
+        <PersistGate loading={<LoadingSpinner />} persistor={persistor}>
+          <PaperProvider theme={theme}>
+            <AppContent />
+          </PaperProvider>
+        </PersistGate>
+      </ReduxProvider>
+    </ErrorBoundary>
   );
 }

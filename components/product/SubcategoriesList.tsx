@@ -5,12 +5,8 @@ import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { deleteSubcategory } from '../../store/slices/subcategoriesSlice';
 import { IfMaster } from '../../components/IfMaster';
+import { Subcategory, SubcategoriesListProps, SubcategoryDisplayItem, SubcategoryRenderItem } from '@/types/product';
 
-interface SubcategoriesListProps {
-  subcategories: any[];
-  onCreateSubcategory: () => void;
-  onEditSubcategory: (subcategory: any) => void;
-}
 
 export const SubcategoriesList: React.FC<SubcategoriesListProps> = ({ 
   subcategories, 
@@ -20,7 +16,7 @@ export const SubcategoriesList: React.FC<SubcategoriesListProps> = ({
   const dispatch = useAppDispatch();
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const handleDeleteSubcategory = (subcategory: any) => {
+  const handleDeleteSubcategory = (subcategory: Subcategory) => {
     Alert.alert(
       'Delete Subcategory',
       `Are you sure you want to delete "${subcategory.name}"?`,
@@ -45,7 +41,7 @@ export const SubcategoriesList: React.FC<SubcategoriesListProps> = ({
     );
   };
 
-  const renderSubcategoryItem = ({ item }: { item: any }) => (
+  const renderSubcategoryItem = ({ item }: SubcategoryRenderItem) => (
     <View style={styles.itemCard}>
       <View style={styles.itemHeader}>
         <View style={styles.itemInfo}>
@@ -109,9 +105,9 @@ export const SubcategoriesList: React.FC<SubcategoriesListProps> = ({
       </View>
 
       <FlatList
-        data={subcategories}
+        data={subcategories as SubcategoryDisplayItem[]}
         renderItem={renderSubcategoryItem}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item: SubcategoryDisplayItem) => item.id.toString()}
         style={styles.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={

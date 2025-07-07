@@ -3,7 +3,8 @@ import { useRouter } from 'expo-router';
 import { jwtDecode } from 'jwt-decode';
 import { useAppDispatch } from './useAppDispatch';
 import { useAppSelector } from './useAppSelector';
-import { logout, refreshToken, clearAuth, TokenData } from '../store/slices/authSlice';
+import { logout, refreshToken, clearAuth } from '../store/slices/authSlice';
+import { TokenData } from '@/types/user';
 
 export const useAuthGuard = () => {
   const router = useRouter();

@@ -1,13 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
-import { User } from './authSlice'; // Import User interface from authSlice
 import { API_URL } from '../../utils/constant';
-
-interface UsersState {
-  list: User[];
-  loading: boolean;
-  error: string | null;
-}
+import { CreateUserData, UsersState, UpdateUserData} from '../../types/user';
+import { getAuthHeader } from '@/utils/authHelper';
 
 const initialState: UsersState = {
   list: [],
@@ -15,10 +10,6 @@ const initialState: UsersState = {
   error: null,
 };
 
-// Helper to get authorization header with token
-const getAuthHeader = (token: string) => ({
-  headers: { Authorization: `Bearer ${token}` }
-});
 
 // Get All Users (GET /users)
 export const fetchUsers = createAsyncThunk(
@@ -44,13 +35,7 @@ export const fetchUsers = createAsyncThunk(
 // Create User (POST /users)
 export const createUser = createAsyncThunk(
   'users/createUser',
-  async (userData: { 
-    name: string; 
-    username: string; 
-    email: string; 
-    password: string; 
-    role: 'master' | 'employee' 
-  }, { rejectWithValue, getState }) => {
+  async (userData: CreateUserData, { rejectWithValue, getState }) => {
     try {
       const state = getState() as { auth: { accessToken: string | null } };
       const token = state.auth.accessToken;
@@ -104,13 +89,7 @@ export const updateUser = createAsyncThunk(
     userData 
   }: { 
     userId: number; 
-    userData: {
-      name?: string;
-      email?: string;
-      role?: 'master' | 'employee';
-      username?: string; 
-      password?: string; 
-    } 
+    userData: UpdateUserData
   }, { rejectWithValue, getState }) => {
     try {
       const state = getState() as { auth: { accessToken: string | null } };

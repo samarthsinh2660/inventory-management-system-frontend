@@ -31,13 +31,8 @@ import * as Yup from 'yup';
 import Toast from 'react-native-toast-message';
 import { Picker } from '@react-native-picker/picker';
 import { IfMaster } from '../IfMaster';
-
-interface ProductDetailsModalProps {
-  visible: boolean;
-  onClose: () => void;
-  product: any;
-  onProductUpdated?: () => void;
-}
+import { ProductDetailsModalProps } from '@/types/general';
+import { handelProductEdit } from '@/types/product';
 
 const validationSchema = Yup.object({
   name: Yup.string().required('Product name is required'),
@@ -88,13 +83,13 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
     onClose();
   };
 
-  const getSelectedItemName = (items: any[], selectedId: number) => {
+  const getSelectedItemName = (items: Array<{ id: number; name: string }>, selectedId: number) => {
     if (!items || items.length === 0) return 'None';
     const item = items.find(item => item?.id === selectedId);
     return item?.name || 'None';
   };
 
-  const handleEdit = async (values: any) => {
+  const handleEdit = async (values: handelProductEdit) => {
     try {
       setLoading(true);
       const updateData = {
@@ -104,10 +99,12 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
         subcategory_id: parseInt(values.subcategory_id),
         location_id: parseInt(values.location_id),
         product_formula_id: values.product_formula_id === '0' ? null : parseInt(values.product_formula_id),
+        category: values.category as any,
+        source_type: values.source_type as any,
       };
 
              await dispatch(updateProduct({
-         id: product.id,
+         id: product?.id!,
          data: updateData
        })).unwrap();
 
@@ -142,7 +139,7 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
           onPress: async () => {
             try {
               setLoading(true);
-              await dispatch(deleteProduct(product.id)).unwrap();
+              await dispatch(deleteProduct(product?.id!)).unwrap();
               Toast.show({
                 type: 'success',
                 text1: 'Success',
@@ -224,7 +221,7 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                 <View style={styles.detailCard}>
                   <DollarSign size={24} color="#059669" />
                   <Text style={styles.detailLabel}>Price</Text>
-                  <Text style={styles.detailValue}>₹{(parseFloat(product.price) || 0).toFixed(2)}</Text>
+                  <Text style={styles.detailValue}>₹{(parseFloat(product.price?.toString()) || 0).toFixed(2)}</Text>
                 </View>
 
                 <View style={styles.detailCard}>

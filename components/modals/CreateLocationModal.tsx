@@ -8,13 +8,7 @@ import { X } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { createLocation, updateLocation } from '../../store/slices/locationsSlice';
 import Toast from 'react-native-toast-message';
-
-interface CreateLocationModalProps {
-  isVisible: boolean;
-  onClose: () => void;
-  onSuccess?: (location: any) => void;
-  editingLocation?: any;
-}
+import { CreateLocationModalProps } from '@/types/general';
 
 const validationSchema = Yup.object({
   name: Yup.string().required('Name is required'),
@@ -45,13 +39,13 @@ export const CreateLocationModal: React.FC<CreateLocationModalProps> = ({
         });
       } else {
         result = await dispatch(createLocation(values)).unwrap();
-        Toast.show({
-          type: 'success',
-          text1: 'Success',
-          text2: 'Location created successfully',
-        });
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Location created successfully',
+      });
       }
-      onSuccess?.(result);
+      onSuccess?.(result.data);
       onClose();
     } catch (error: any) {
       Toast.show({

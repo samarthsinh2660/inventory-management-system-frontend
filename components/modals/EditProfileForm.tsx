@@ -2,18 +2,11 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, Switch } from 'react-native';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
-import { User } from '../../store/slices/authSlice';
 import { updateProfile } from '../../store/slices/authSlice';
 import { updateUser } from '../../store/slices/usersSlice';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
+import { UserRole, EditProfileFormProps} from '@/types/user';
 
-interface EditProfileFormProps {
-  user: User;
-  isOwnProfile?: boolean;
-  onSuccess?: () => void;
-  onCancel?: () => void;
-  fieldsToShow?: Array<'name' | 'email' | 'password' | 'username' | 'role'>;
-}
 
 export const EditProfileForm = ({
   user,
@@ -61,7 +54,7 @@ export const EditProfileForm = ({
     name: user?.name || '',
     email: user?.email || '',
     username: user?.username || '',
-    role: user?.role || 'employee',
+    role: user?.role || UserRole.EMPLOYEE,
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
@@ -205,17 +198,17 @@ export const EditProfileForm = ({
               <View style={styles.roleContainer}>
                 <Text>Employee</Text>
                 <Switch
-                  value={values.role === 'master'}
+                  value={values.role === UserRole.MASTER}
                   onValueChange={(value) => {
-                    setFieldValue('role', value ? 'master' : 'employee');
+                    setFieldValue('role', value ? UserRole.MASTER : UserRole.EMPLOYEE);
                   }}
                   trackColor={{ false: '#d1d5db', true: '#bfdbfe' }}
-                  thumbColor={values.role === 'master' ? '#2563eb' : '#9ca3af'}
+                  thumbColor={values.role === UserRole.MASTER ? '#2563eb' : '#9ca3af'}
                 />
                 <Text>Master</Text>
               </View>
               <Text style={styles.roleHint}>
-                {values.role === 'master' ? 
+                {values.role === UserRole.MASTER ? 
                   'Master users have full administrative access' : 
                   'Employee users have limited access'}
               </Text>
@@ -302,6 +295,10 @@ export const EditProfileForm = ({
             </TouchableOpacity>
           )}
 
+          {/* Add some spacing before buttons */}
+          <View style={styles.spacer} />
+
+          {/* Fixed button container at bottom */}
           <View style={styles.buttonGroup}>
             <TouchableOpacity
               style={[styles.button, styles.cancelButton]}
@@ -334,7 +331,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 20,
-    marginBottom: 20,
+    marginBottom: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -371,18 +368,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
+  spacer: {
+    height: 20,
+  },
   buttonGroup: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
+    marginTop: 16,
+    marginBottom: 20,
+    paddingHorizontal: 4,
   },
   button: {
     flex: 1,
-    height: 48,
+    height: 52,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 4,
+    marginHorizontal: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   cancelButton: {
     backgroundColor: '#f3f4f6',

@@ -5,12 +5,9 @@ import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { deleteLocation } from '../../store/slices/locationsSlice';
 import { IfMaster } from '../../components/IfMaster';
+import { LocationsListProps, LocationDisplayItem } from '@/types/product';
 
-interface LocationsListProps {
-  locations: any[];
-  onCreateLocation: () => void;
-  onEditLocation: (location: any) => void;
-}
+
 
 export const LocationsList: React.FC<LocationsListProps> = ({ 
   locations, 
@@ -20,7 +17,7 @@ export const LocationsList: React.FC<LocationsListProps> = ({
   const dispatch = useAppDispatch();
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const handleDeleteLocation = (location: any) => {
+  const handleDeleteLocation = (location: LocationDisplayItem) => {
     Alert.alert(
       'Delete Location',
       `Are you sure you want to delete "${location.name}"?`,
@@ -45,7 +42,7 @@ export const LocationsList: React.FC<LocationsListProps> = ({
     );
   };
 
-  const renderLocationItem = ({ item }: { item: any }) => (
+  const renderLocationItem = ({ item }: { item: LocationDisplayItem }) => (
     <View style={styles.itemCard}>
       <View style={styles.itemHeader}>
         <View style={styles.itemInfo}>
@@ -53,8 +50,8 @@ export const LocationsList: React.FC<LocationsListProps> = ({
             <MapPin size={16} color="#6b7280" />
             <Text style={styles.itemName}>{item.name}</Text>
           </View>
-          {item.description && (
-            <Text style={styles.itemDescription}>{item.description}</Text>
+          {item.address && (
+            <Text style={styles.itemDescription}>{item.address}</Text>
           )}
         </View>
         <IfMaster>

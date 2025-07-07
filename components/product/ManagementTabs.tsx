@@ -1,25 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Package, MapPin, Tag, Beaker } from 'lucide-react-native';
 import { LocationsList } from './LocationsList';
 import { SubcategoriesList } from './SubcategoriesList';
 import { FormulasList } from './FormulasList';
-
-interface ManagementTabsProps {
-  products: any[];
-  subcategories: any[];
-  locations: any[];
-  formulas: any[];
-  onCreateLocation: () => void;
-  onEditLocation: (location: any) => void;
-  onCreateSubcategory: () => void;
-  onEditSubcategory: (subcategory: any) => void;
-  onCreateFormula: () => void;
-  onEditFormula: (formula: any) => void;
-  onBackToProducts: () => void;
-}
-
-type TabType = 'products' | 'locations' | 'subcategories' | 'formulas';
+import { ManagementTabsProps, TabType } from '@/types/product';
 
 export const ManagementTabs: React.FC<ManagementTabsProps> = ({
   products,

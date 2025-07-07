@@ -1,9 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-
-interface CategoryBadgeProps {
-  category: 'raw' | 'semi' | 'finished';
-}
+import { CategoryBadgeProps } from '@/types/product';
 
 export const CategoryBadge: React.FC<CategoryBadgeProps> = ({ category }) => {
   const getColor = () => {
