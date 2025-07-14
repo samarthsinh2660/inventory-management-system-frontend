@@ -55,16 +55,6 @@ export default function TabLayout() {
           ),
         }}
       />
-      {/* Audit tab - visible to all users */}
-      <Tabs.Screen
-        name="audit"
-        options={{
-          title: 'Audit',
-          tabBarIcon: ({ size, color }) => (
-            <FileText size={size} color={color} />
-          ),
-        }}
-      />
       <Tabs.Screen
         name="settings"
         options={{

@@ -55,7 +55,7 @@ function AppContent() {
         <Stack.Screen name="(alerts)/alerts" options={{ headerShown: false }} />
         <Stack.Screen name="(shared)/statistics" options={{ headerShown: false }} />
         <Stack.Screen name="(shared)/inventory" options={{ headerShown: false }} />
-        <Stack.Screen name="(shared)/audit" options={{ headerShown: false }} />
+        <Stack.Screen name="audit/audit" options={{ headerShown: false }} />
         <Stack.Screen name="(shared)/settings" options={{ headerShown: false }} />
         <Stack.Screen name="create-product" options={{ headerShown: false }} />
         <Stack.Screen name="demo-info" options={{ headerShown: false }} />

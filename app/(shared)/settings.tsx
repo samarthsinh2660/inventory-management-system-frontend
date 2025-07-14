@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Settings as SettingsIcon, User, Users, LogOut, Shield, Bell, Info, ChevronRight, TriangleAlert as AlertTriangle, TestTube } from 'lucide-react-native';
+import { Settings as SettingsIcon, User, Users, LogOut, Shield, Bell, Info, ChevronRight, TriangleAlert as AlertTriangle, TestTube, FileText, MapPin, ArrowLeft } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { IfMaster } from '../../components/IfMaster';
 import { logout, clearAuth } from '../../store/slices/authSlice';
 import { EditProfileForm } from '../../components/modals/EditProfileForm';
+import { LocationsList } from '../../components/product/LocationsList';
+import { CreateLocationModal } from '../../components/modals/CreateLocationModal';
+import { fetchLocations } from '../../store/slices/locationsSlice';
 import Modal from 'react-native-modal';
 import { UserRole } from '@/types/user';
+import { Notification } from '@/types/alerts';
+import { Location } from '@/types/product';
 import CrashTestComponent from '@/components/CrashTestComponent';
 
 export default function Settings() {
@@ -17,15 +22,42 @@ export default function Settings() {
   const dispatch = useAppDispatch();
   const user = useAppSelector(state => state.auth.user);
   const { alerts, notifications } = useAppSelector(state => state.alerts);
+  const locations = useAppSelector(state => state.locations.list);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showCrashTesting, setShowCrashTesting] = useState(false);
+  const [showLocationManagement, setShowLocationManagement] = useState(false);
+  const [showCreateLocation, setShowCreateLocation] = useState(false);
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
 
   const { width: screenWidth } = Dimensions.get('window');
   const isMobileWidth = screenWidth < 768; // Consider mobile if width < 768px
   const isMaster = user?.role === UserRole.MASTER;
 
-  const unresolvedAlertsCount = notifications.filter(notification => !notification.is_read).length;
+  const unresolvedAlertsCount = notifications.filter((notification: Notification) => !notification.is_read).length;
+
+  // Location management handlers
+  const handleCreateLocation = () => {
+    setEditingLocation(null);
+    setShowCreateLocation(true);
+  };
+
+  const handleEditLocation = (location: Location) => {
+    setEditingLocation(location);
+    setShowCreateLocation(true);
+  };
+
+  const handleLocationModalClose = () => {
+    setShowCreateLocation(false);
+    setEditingLocation(null);
+    // Refresh locations after modal closes
+    dispatch(fetchLocations());
+  };
+
+  React.useEffect(() => {
+    // Load locations when component mounts
+    dispatch(fetchLocations());
+  }, [dispatch]);
 
   const formatMemberSinceDetailed = (dateString?: string) => {
     if (!dateString) return 'Unknown';
@@ -103,6 +135,40 @@ export default function Settings() {
       setIsLoggingOut(false);
     }
   };
+
+  // If showing location management, render that view
+  if (showLocationManagement) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.locationHeader}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => setShowLocationManagement(false)}
+            >
+              <ArrowLeft size={20} color="#2563eb" />
+            </TouchableOpacity>
+            <View style={styles.locationHeaderContent}>
+              <MapPin size={24} color="#2563eb" />
+              <Text style={styles.title}>Location</Text>
+            </View>
+          </View>
+        </View>
+
+        <LocationsList
+          locations={locations}
+          onCreateLocation={handleCreateLocation}
+          onEditLocation={handleEditLocation}
+        />
+
+        <CreateLocationModal
+          isVisible={showCreateLocation}
+          onClose={handleLocationModalClose}
+          editingLocation={editingLocation || undefined}
+        />
+      </SafeAreaView>
+    );
+  }
 
   const SettingsItem = ({ 
     icon, 
@@ -216,6 +282,14 @@ export default function Settings() {
                 Alert.alert('Coming Soon', 'Notification settings will be available in a future update.');
               }}
             />
+            {!isMaster && (
+              <SettingsItem
+                icon={<FileText size={20} color="#8b5cf6" />}
+                title="Activity Logs"
+                subtitle="View your activity history"
+                onPress={() => router.push('/audit/audit')}
+              />
+            )}
           </View>
         </View>
 
@@ -235,6 +309,18 @@ export default function Settings() {
                 subtitle="View and manage stock alerts"
                 onPress={() => router.push('/alerts')}
                 badge={unresolvedAlertsCount}
+              />
+              <SettingsItem
+                icon={<FileText size={20} color="#8b5cf6" />}
+                title="Audit Logs"
+                subtitle="View system activity and changes"
+                onPress={() => router.push('/audit/audit')}
+              />
+              <SettingsItem
+                icon={<MapPin size={20} color="#10b981" />}
+                title="Location Management"
+                subtitle="Manage warehouse locations"
+                onPress={() => setShowLocationManagement(true)}
               />
             </View>
           </View>
@@ -352,10 +438,26 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
+  backButton: {
+    padding: 8,
+    marginLeft: -8,
+  },
+  locationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+  },
+  locationHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
+    marginLeft: 12,
   },
   title: {
     fontSize: 24,

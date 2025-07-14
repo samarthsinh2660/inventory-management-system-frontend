@@ -26,6 +26,11 @@ export function ProductFiltersModal({
 }: ProductFiltersModalProps) {
   const [tempFilters, setTempFilters] = useState<ProductFiltersState>(filters);
 
+  // Sync tempFilters when modal opens or filters change
+  React.useEffect(() => {
+    setTempFilters(filters);
+  }, [filters, isVisible]);
+
   const handleApply = () => {
     onApplyFilters(tempFilters);
     onClose();
@@ -42,7 +47,12 @@ export function ProductFiltersModal({
     setTempFilters(resetFilters);
   };
 
-  const categories = ['Raw Materials', 'Finished Products', 'Packaging', 'Chemicals'];
+  const categories = [
+    { label: 'Raw Materials', value: 'raw' },
+    { label: 'Finished Products', value: 'finished' },
+    { label: 'Packaging', value: 'packaging' },
+    { label: 'Chemicals', value: 'chemicals' }
+  ];
   const sourceTypes = ['manufacturing', 'trading'];
 
   return (
@@ -77,7 +87,7 @@ export function ProductFiltersModal({
               >
                 <Picker.Item label="All Categories" value="" />
                 {categories.map((category) => (
-                  <Picker.Item key={category} label={category} value={category} />
+                  <Picker.Item key={category.value} label={category.label} value={category.value} />
                 ))}
               </Picker>
             </View>

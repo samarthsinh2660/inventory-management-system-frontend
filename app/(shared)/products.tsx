@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, Search, Filter, X, MapPin, Tag, Beaker, ArrowLeft } from 'lucide-react-native';
+import { Plus, Search, Filter, X, CircleDollarSign, Package } from 'lucide-react-native';
+import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
@@ -11,18 +12,13 @@ import { fetchProducts } from '../../store/slices/productsSlice';
 import { fetchSubcategories } from '../../store/slices/subcategoriesSlice';
 import { fetchLocations } from '../../store/slices/locationsSlice';
 import { fetchFormulas } from '../../store/slices/formulasSlice';
+import { fetchInventoryBalance } from '../../store/slices/inventorySlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ProductFiltersModal } from '@/components/modals/ProductFiltersModal';
 import { CustomSearchBar } from '@/components/CustomSearchBar';
 import ProductDetailsModal from '../../components/modals/ProductDetailsModal';
-import { Product, Location, Subcategory, Formula, TabType, FilterState } from '@/types/product';
-import { LocationsList } from '../../components/product/LocationsList';
-import { SubcategoriesList } from '../../components/product/SubcategoriesList';
-import { FormulasList } from '../../components/product/FormulasList';
-import { CreateLocationModal } from '../../components/modals/CreateLocationModal';
-import { CreateSubcategoryModal } from '../../components/modals/CreateSubcategoryModal';
-import { CreateFormulaModal } from '../../components/modals/CreateFormulaModal';
-
+import { Product, FilterState, ProductCategory, ProductSourceType } from '@/types/product';
+import { UserRole } from '@/types/user';
 
 export default function Products() {
   const router = useRouter();
@@ -31,21 +27,14 @@ export default function Products() {
   const subcategories = useAppSelector(state => state.subcategories.list);
   const locations = useAppSelector(state => state.locations.list);
   const formulas = useAppSelector(state => state.formulas.list);
+  const inventoryBalance = useAppSelector(state => state.inventory.balance);
   const user = useAppSelector(state => state.auth.user);
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [showProductDetails, setShowProductDetails] = useState(false);
-  const [viewMode, setViewMode] = useState<TabType>('products');
-  
-  // Create/Edit Modal States
-  const [showCreateLocation, setShowCreateLocation] = useState(false);
-  const [showCreateSubcategory, setShowCreateSubcategory] = useState(false);
-  const [showCreateFormula, setShowCreateFormula] = useState(false);
-  const [editingLocation, setEditingLocation] = useState<any>(null);
-  const [editingSubcategory, setEditingSubcategory] = useState<any>(null);
-  const [editingFormula, setEditingFormula] = useState<any>(null);
   
   const [filters, setFilters] = useState<FilterState>({
     category: '',
@@ -55,10 +44,33 @@ export default function Products() {
     formula_id: 0,
   });
 
-  const isMaster = user?.role === 'master';
+  const [quickFilters, setQuickFilters] = useState({
+    category: '',
+    subcategory_id: 0,
+  });
 
-  const handleSearChange = (text: string) => {
+  const isMaster = user?.role === UserRole.MASTER;
+
+  const handleSearchChange = (text: string) => {
     setSearchTerm(text);
+  };
+
+  // Get current stock for a product from inventory balance
+  const getProductStock = (productId: number) => {
+    const balance = inventoryBalance.find(item => item.product_id === productId);
+    return balance?.total_quantity || 0;
+  };
+
+  // Get price per unit for a product from inventory balance
+  const getProductPricePerUnit = (productId: number) => {
+    const balance = inventoryBalance.find(item => item.product_id === productId);
+    return balance?.price_per_unit || 0;
+  };
+
+  // Get total value for a product from inventory balance
+  const getProductTotalValue = (productId: number) => {
+    const balance = inventoryBalance.find(item => item.product_id === productId);
+    return balance?.total_price || 0;
   };
 
   const applyFilters = (product: Product) => {
@@ -68,20 +80,29 @@ export default function Products() {
     
     if (!matchesSearch) return false;
 
+    // Combined filters (both detailed and quick filters)
+    const allFilters = {
+      category: filters.category || quickFilters.category,
+      subcategory_id: filters.subcategory_id || quickFilters.subcategory_id,
+      location_id: filters.location_id,
+      source_type: filters.source_type,
+      formula_id: filters.formula_id,
+    };
+
     // Category filter
-    if (filters.category && product.category !== filters.category) return false;
+    if (allFilters.category && product.category !== allFilters.category) return false;
     
     // Subcategory filter
-    if (filters.subcategory_id && product.subcategory_id !== filters.subcategory_id) return false;
+    if (allFilters.subcategory_id && product.subcategory_id !== allFilters.subcategory_id) return false;
     
     // Location filter
-    if (filters.location_id && product.location_id !== filters.location_id) return false;
+    if (allFilters.location_id && product.location_id !== allFilters.location_id) return false;
     
     // Source type filter
-    if (filters.source_type && product.source_type !== filters.source_type) return false;
+    if (allFilters.source_type && product.source_type !== allFilters.source_type) return false;
     
     // Formula filter
-    if (filters.formula_id && product.product_formula_id !== filters.formula_id) return false;
+    if (allFilters.formula_id && product.product_formula_id !== allFilters.formula_id) return false;
 
     return true;
   };
@@ -89,6 +110,8 @@ export default function Products() {
   const filteredProducts = products.filter(applyFilters);
 
   const activeFiltersCount = Object.values(filters).filter(value => 
+    value !== '' && value !== 0
+  ).length + Object.values(quickFilters).filter(value => 
     value !== '' && value !== 0
   ).length;
 
@@ -99,6 +122,10 @@ export default function Products() {
       location_id: 0,
       source_type: '',
       formula_id: 0,
+    });
+    setQuickFilters({
+      category: '',
+      subcategory_id: 0,
     });
   };
 
@@ -113,10 +140,11 @@ export default function Products() {
     setRefreshing(true);
     try {
       await Promise.all([
-        dispatch(fetchProducts({ page: 1, limit: 20 })),
+        dispatch(fetchProducts({ page: 1, limit: 100 })),
         dispatch(fetchSubcategories()),
         dispatch(fetchLocations()),
         dispatch(fetchFormulas()),
+        dispatch(fetchInventoryBalance()),
       ]);
     } finally {
       setRefreshing(false);
@@ -124,211 +152,111 @@ export default function Products() {
   }, [dispatch]);
 
   const handleProductUpdated = React.useCallback(() => {
-    dispatch(fetchProducts({ page: 1, limit: 50 }));
+    dispatch(fetchProducts({ page: 1, limit: 100 }));
+    dispatch(fetchInventoryBalance());
   }, [dispatch]);
-
-  // Management View Handlers
-  const handleCreateLocation = () => {
-    setEditingLocation(null);
-    setShowCreateLocation(true);
-  };
-
-  const handleEditLocation = (location: Location) => {
-    setEditingLocation(location);
-    setShowCreateLocation(true);
-  };
-
-  const handleCreateSubcategory = () => {
-    setEditingSubcategory(null);
-    setShowCreateSubcategory(true);
-  };
-
-  const handleEditSubcategory = (subcategory: Subcategory) => {
-    setEditingSubcategory(subcategory);
-    setShowCreateSubcategory(true);
-  };
-
-  const handleCreateFormula = () => {
-    setEditingFormula(null);
-    setShowCreateFormula(true);
-  };
-
-  const handleEditFormula = (formula: Formula) => {
-    setEditingFormula(formula);
-    setShowCreateFormula(true);
-  };
-
-  const handleModalClose = () => {
-    setShowCreateLocation(false);
-    setShowCreateSubcategory(false);
-    setShowCreateFormula(false);
-    setEditingLocation(null);
-    setEditingSubcategory(null);
-    setEditingFormula(null);
-    // Refresh data after modal closes
-    onRefresh();
-  };
 
   useEffect(() => {
-    dispatch(fetchProducts({ page: 1, limit: 50 }));
-    dispatch(fetchSubcategories());
-    dispatch(fetchLocations());
-    dispatch(fetchFormulas());
-  }, [dispatch]);
+    onRefresh();
+  }, []);
 
-  const renderProduct = ({ item }: { item: any }) => (
-    <TouchableOpacity 
-      style={styles.productCard}
-      onPress={() => {
-        setSelectedProduct(item);
-        setShowProductDetails(true);
-      }}
-    >
-      <View style={styles.productHeader}>
-        <View style={styles.productInfo}>
-          <Text style={styles.productName}>{item.name}</Text>
-          <Text style={styles.productUnit}>{item.unit}</Text>
-        </View>
-        <View style={styles.statusContainer}>
-          <CategoryBadge category={item.category} />
-          <View style={[
-            styles.stockIndicator,
-            {
-              backgroundColor: (item.current_stock || 0) < (item.min_stock_threshold || 0) 
-                ? '#fef2f2' 
-                : (item.current_stock || 0) === 0 
-                  ? '#f3f4f6' 
-                  : '#f0fdf4'
-            }
-          ]}>
-            <Text style={[
-              styles.stockIndicatorText,
-              {
-                color: (item.current_stock || 0) < (item.min_stock_threshold || 0) 
-                  ? '#dc2626' 
-                  : (item.current_stock || 0) === 0 
-                    ? '#6b7280' 
-                    : '#16a34a'
-              }
-            ]}>
-              {(item.current_stock || 0) < (item.min_stock_threshold || 0) 
-                ? 'Low Stock' 
-                : (item.current_stock || 0) === 0 
-                  ? 'Out of Stock' 
-                  : 'In Stock'
-              }
-            </Text>
-          </View>
-        </View>
-      </View>
-      
-      <View style={styles.productDetails}>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Cost:</Text>
-          <Text style={styles.detailValue}>₹{item.price}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Stock:</Text>
-          <Text style={[
-            styles.detailValue,
-            (item.current_stock || 0) < (item.min_stock_threshold || 0) && styles.lowStock
-          ]}>
-            {item.current_stock || 0} {item.unit}
-          </Text>
-        </View>
-        {item.min_stock_threshold && (
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Min Threshold:</Text>
-            <Text style={styles.detailValue}>{item.min_stock_threshold} {item.unit}</Text>
-          </View>
-        )}
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Source:</Text>
-          <Text style={[styles.detailValue, styles.sourceType]}>
-            {item.source_type === 'manufacturing' ? 'Manufacturing' : 'Trading'}
-          </Text>
-        </View>
-        {item.formula_name && (
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Formula:</Text>
-            <Text style={[styles.detailValue, styles.formulaName]}>
-              {item.formula_name}
-            </Text>
-          </View>
-        )}
-      </View>
-      
-      <View style={styles.productFooter}>
-        <Text style={styles.subcategoryText}>{item.subcategory_name}</Text>
-        <Text style={styles.locationText}>{item.location_name}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderProduct = ({ item }: { item: Product }) => {
+    const currentStock = getProductStock(item.id);
+    const pricePerUnit = getProductPricePerUnit(item.id);
+    const totalValue = getProductTotalValue(item.id);
+    const isLowStock = currentStock < (item.min_stock_threshold || 0);
+    const isOutOfStock = currentStock === 0;
 
-  const renderManagementViewButtons = () => (
-    <View style={styles.managementViewContainer}>
-      <Text style={styles.managementViewLabel}>Management Views:</Text>
-      <View style={styles.managementViewButtons}>
-        <TouchableOpacity
-          style={[styles.managementViewButton, viewMode === 'locations' && styles.managementViewButtonActive]}
-          onPress={() => setViewMode('locations')}
-        >
-          <MapPin size={16} color={viewMode === 'locations' ? '#2563eb' : '#6b7280'} />
-          <Text style={[styles.managementViewButtonText, viewMode === 'locations' && styles.managementViewButtonTextActive]}>
-            Locations
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.managementViewButton, viewMode === 'subcategories' && styles.managementViewButtonActive]}
-          onPress={() => setViewMode('subcategories')}
-        >
-          <Tag size={16} color={viewMode === 'subcategories' ? '#2563eb' : '#6b7280'} />
-          <Text style={[styles.managementViewButtonText, viewMode === 'subcategories' && styles.managementViewButtonTextActive]}>
-            Categories
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.managementViewButton, viewMode === 'formulas' && styles.managementViewButtonActive]}
-          onPress={() => setViewMode('formulas')}
-        >
-          <Beaker size={16} color={viewMode === 'formulas' ? '#2563eb' : '#6b7280'} />
-          <Text style={[styles.managementViewButtonText, viewMode === 'formulas' && styles.managementViewButtonTextActive]}>
-            Formulas
-          </Text>
-        </TouchableOpacity>
-      </View>
+    return (
+      <TouchableOpacity 
+        style={styles.productCard}
+        onPress={() => {
+          setSelectedProduct({ ...item, current_stock: currentStock, total_value: totalValue });
+          setShowProductDetails(true);
+        }}
+      >
+        {/* Product Header - Title with stock status and category */}
+        <View style={styles.productHeader}>
+          <View style={styles.titleRow}>
+            <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
+            <View style={styles.statusCategoryContainer}>
+            <CategoryBadge category={item.category} />
+              <View style={[
+                styles.statusBadge,
+                {
+                  backgroundColor: isOutOfStock ? '#fef2f2' : isLowStock ? '#fef3c7' : '#f0fdf4'
+                }
+              ]}>
+                <Text style={[
+                  styles.statusText,
+                  {
+                    color: isOutOfStock ? '#dc2626' : isLowStock ? '#d97706' : '#16a34a'
+                  }
+                ]}>
+                  {isOutOfStock ? 'Out of Stock' : isLowStock ? 'Low Stock' : 'In Stock'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Product Details - Compact side by side layout */}
+        <View style={styles.productDetails}>
+          <View style={styles.detailRowCompact}>
+            <View style={styles.detailColumn}>
+              <View style={styles.inlineDetail}>
+                <Text style={styles.detailLabel}>Current Stock:</Text>
+                <Text style={[
+                  styles.detailValue,
+                  styles.inlineValue,
+                  { color: isOutOfStock ? '#dc2626' : isLowStock ? '#f59e0b' : '#16a34a' }
+                ]}>
+                  {currentStock} {item.unit}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.detailColumn}>
+              <View style={styles.inlineDetail}>
+                <Text style={styles.detailLabel}>Min Threshold:</Text>
+                <Text style={[styles.detailValue, styles.inlineValue]}>{item.min_stock_threshold || 0} {item.unit}</Text>
+              </View>
+            </View>
+          </View>
+          <View style={styles.detailRowCompact}>
+   <View style={styles.detailColumnPrice}> 
+    <View style={styles.inlineDetail}>
+      <Text style={styles.detailLabel}>Price/Unit:</Text>
+      <Text style={[styles.priceText, styles.inlineValue]} numberOfLines={1}>
+        ₹{pricePerUnit.toFixed(2)}
+      </Text>
     </View>
-  );
+  </View>
+  <View style={styles.detailColumnSource}> 
+    <View style={styles.sourceDetailContainer}>
+      <Text style={styles.sourceLabel}>Source:</Text>
+      <Text style={styles.sourceText} numberOfLines={1}>
+        {item.source_type === 'manufacturing' ? 'Manufacturing' : 'Trading'}
+      </Text>
+    </View>
+  </View>
+</View>
+        </View>
 
-  const renderManagementContent = () => {
-    switch (viewMode) {
-      case 'locations':
-        return (
-          <LocationsList
-            locations={locations}
-            onCreateLocation={handleCreateLocation}
-            onEditLocation={handleEditLocation}
-          />
-        );
-      case 'subcategories':
-        return (
-          <SubcategoriesList
-            subcategories={subcategories}
-            onCreateSubcategory={handleCreateSubcategory}
-            onEditSubcategory={handleEditSubcategory}
-          />
-        );
-      case 'formulas':
-        return (
-          <FormulasList
-            formulas={formulas}
-            onCreateFormula={handleCreateFormula}
-            onEditFormula={handleEditFormula}
-          />
-        );
-      default:
-        return null;
-    }
+        {/* Product Footer - Subcategory left, Location right */}
+        <View style={styles.productFooter}>
+          <View style={styles.footerLeft}>
+            <Text style={styles.subcategoryText}>
+              📂 {subcategories.find(sub => sub.id === item.subcategory_id)?.name || 'No Subcategory'}
+            </Text>
+          </View>
+          <View style={styles.footerRight}>
+            <Text style={styles.productLocation}>
+              📍 {locations.find(loc => loc.id === item.location_id)?.name || 'No Location'}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
   };
 
   if (loading && !refreshing) {
@@ -339,29 +267,23 @@ export default function Products() {
     );
   }
 
+  const categories = [
+    { label: 'All Categories', value: '' },
+    { label: 'Raw Materials', value: ProductCategory.RAW },
+    { label: 'Finished Products', value: ProductCategory.FINISHED },
+    { label: 'Semi-Finished Products', value: ProductCategory.SEMI },
+  ];
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          {viewMode !== 'products' ? (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => setViewMode('products')}
-            >
-              <ArrowLeft size={20} color="#2563eb" />
-              <Text style={styles.backButtonText}>Back to Products</Text>
-            </TouchableOpacity>
-          ) : (
-            <>
           <Text style={styles.title}>Products</Text>
           <Text style={styles.subtitle}>
             {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} 
             {activeFiltersCount > 0 && ` (${activeFiltersCount} filter${activeFiltersCount !== 1 ? 's' : ''} applied)`}
           </Text>
-            </>
-          )}
         </View>
-        {viewMode === 'products' && (
         <IfMaster>
           <TouchableOpacity 
             style={styles.addButton}
@@ -370,16 +292,13 @@ export default function Products() {
             <Plus size={20} color="white" />
           </TouchableOpacity>
         </IfMaster>
-        )}
       </View>
 
-      {viewMode === 'products' ? (
-        <>
       <View style={styles.searchContainer}>
         <CustomSearchBar
           placeholder="Search products..."
           value={searchTerm}
-          onChangeText={handleSearChange}
+          onChangeText={handleSearchChange}
           onClear={() => setSearchTerm('')}
         />
         <TouchableOpacity 
@@ -395,19 +314,59 @@ export default function Products() {
         </TouchableOpacity>
       </View>
 
+      {/* Quick Filters */}
       <View style={styles.quickFiltersContainer}>
         <Text style={styles.quickFiltersLabel}>Quick Filters:</Text>
+        
+        {/* Category Dropdown */}
+        <View style={styles.quickFilterContainer}>
+          <View style={styles.quickFilterDropdown}>
+            <Picker
+              selectedValue={quickFilters.category}
+              onValueChange={(value) => setQuickFilters(prev => ({ ...prev, category: value }))}
+              style={styles.quickPicker}
+              itemStyle={styles.pickerItem}
+            >
+              {categories.map((category) => (
+                <Picker.Item key={category.value} label={category.label} value={category.value} />
+              ))}
+            </Picker>
+          </View>
+        </View>
+
+        {/* Subcategory Dropdown */}
+        <View style={styles.quickFilterContainer}>
+          <View style={styles.quickFilterDropdown}>
+            <Picker
+              selectedValue={quickFilters.subcategory_id}
+              onValueChange={(value) => setQuickFilters(prev => ({ ...prev, subcategory_id: value }))}
+              style={styles.quickPicker}
+              itemStyle={styles.pickerItem}
+            >
+              <Picker.Item label="All Subcategories" value={0} />
+              {subcategories.map((subcategory) => (
+                <Picker.Item
+                  key={subcategory.id}
+                  label={subcategory.name}
+                  value={subcategory.id}
+                />
+              ))}
+            </Picker>
+          </View>
+        </View>
+
+        {/* Source Type Quick Filters */}
         <View style={styles.quickFilters}>
           <TouchableOpacity
             style={[
               styles.quickFilterButton,
-              filters.source_type === 'manufacturing' && styles.quickFilterButtonActive
+              filters.source_type === ProductSourceType.MANUFACTURING && styles.quickFilterButtonActive
             ]}
             onPress={() => setQuickFilter('manufacturing')}
           >
             <Text style={[
               styles.quickFilterText,
-              filters.source_type === 'manufacturing' && styles.quickFilterTextActive
+              filters.source_type === ProductSourceType.MANUFACTURING && styles.quickFilterTextActive
             ]}>
               Manufacturing
             </Text>
@@ -415,13 +374,13 @@ export default function Products() {
           <TouchableOpacity
             style={[
               styles.quickFilterButton,
-              filters.source_type === 'trading' && styles.quickFilterButtonActive
+              filters.source_type === ProductSourceType.TRADING && styles.quickFilterButtonActive
             ]}
             onPress={() => setQuickFilter('trading')}
           >
             <Text style={[
               styles.quickFilterText,
-              filters.source_type === 'trading' && styles.quickFilterTextActive
+              filters.source_type === ProductSourceType.TRADING && styles.quickFilterTextActive
             ]}>
               Trading
             </Text>
@@ -438,8 +397,6 @@ export default function Products() {
         </View>
       </View>
 
-          {renderManagementViewButtons()}
-
       <FlatList
         data={filteredProducts}
         renderItem={renderProduct}
@@ -452,6 +409,7 @@ export default function Products() {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
+            <Package size={48} color="#d1d5db" />
             <Text style={styles.emptyText}>
               {searchTerm || activeFiltersCount > 0 ? 'No products match your search' : 'No products found'}
             </Text>
@@ -479,12 +437,6 @@ export default function Products() {
           </View>
         }
       />
-        </>
-      ) : (
-        <View style={styles.managementContentContainer}>
-          {renderManagementContent()}
-        </View>
-      )}
 
       <ProductFiltersModal
         isVisible={showFilters}
@@ -498,30 +450,9 @@ export default function Products() {
 
       <ProductDetailsModal
         visible={showProductDetails}
-        onClose={() => {
-          setShowProductDetails(false);
-          setSelectedProduct(null);
-        }}
+        onClose={() => setShowProductDetails(false)}
         product={selectedProduct}
         onProductUpdated={handleProductUpdated}
-      />
-
-      <CreateLocationModal
-        isVisible={showCreateLocation}
-        onClose={handleModalClose}
-        editingLocation={editingLocation}
-      />
-
-      <CreateSubcategoryModal
-        isVisible={showCreateSubcategory}
-        onClose={handleModalClose}
-        editingSubcategory={editingSubcategory}
-      />
-
-      <CreateFormulaModal
-        isVisible={showCreateFormula}
-        onClose={handleModalClose}
-        editingFormula={editingFormula}
       />
     </SafeAreaView>
   );
@@ -554,16 +485,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     marginTop: 2,
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2563eb',
   },
   addButton: {
     backgroundColor: '#2563eb',
@@ -615,7 +536,10 @@ const styles = StyleSheet.create({
   },
   quickFiltersContainer: {
     paddingHorizontal: 20,
-    marginBottom: 16,
+    paddingVertical: 12,
+    backgroundColor: '#f9fafb',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
   quickFiltersLabel: {
     fontSize: 14,
@@ -623,201 +547,241 @@ const styles = StyleSheet.create({
     color: '#374151',
     marginBottom: 8,
   },
+  quickFilterContainer: {
+    marginBottom: 12,
+  },
+  quickFilterLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  quickFilterDropdown: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    height: 50,
+    justifyContent: 'center',
+  },
+  quickPicker: {
+    height: 50,
+  },
+  pickerItem: {
+    fontSize: 14,
+    height: 50,
+  },
   quickFilters: {
     flexDirection: 'row',
     gap: 8,
-    alignItems: 'center',
+    flexWrap: 'wrap',
   },
   quickFilterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: 'white',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#d1d5db',
+    backgroundColor: 'white',
   },
   quickFilterButtonActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
+    backgroundColor: '#dbeafe',
+    borderColor: '#3b82f6',
   },
   quickFilterText: {
     fontSize: 12,
-    fontWeight: '500',
     color: '#6b7280',
+    fontWeight: '500',
   },
   quickFilterTextActive: {
-    color: 'white',
+    color: '#2563eb',
+    fontWeight: '600',
   },
   clearFiltersButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: 16,
     backgroundColor: '#fef2f2',
-    borderWidth: 1,
-    borderColor: '#fecaca',
   },
   clearFiltersText: {
     fontSize: 12,
-    fontWeight: '500',
     color: '#ef4444',
-  },
-  managementViewContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  managementViewLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  managementViewButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  managementViewButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    gap: 6,
-  },
-  managementViewButtonActive: {
-    backgroundColor: '#dbeafe',
-    borderColor: '#2563eb',
-  },
-  managementViewButtonText: {
-    fontSize: 12,
     fontWeight: '500',
-    color: '#6b7280',
-  },
-  managementViewButtonTextActive: {
-    color: '#2563eb',
-    fontWeight: '600',
-  },
-  managementViewBadge: {
-    backgroundColor: '#f3f4f6',
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    minWidth: 20,
-    alignItems: 'center',
-  },
-  managementViewBadgeActive: {
-    backgroundColor: '#2563eb',
-  },
-  managementViewBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#6b7280',
-  },
-  managementViewBadgeTextActive: {
-    color: 'white',
-  },
-  managementContentContainer: {
-    flex: 1,
   },
   list: {
     flex: 1,
   },
   listContent: {
     paddingHorizontal: 20,
+    paddingVertical: 16,
   },
   productCard: {
     backgroundColor: 'white',
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
     borderWidth: 1,
     borderColor: '#f1f5f9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   productHeader: {
+    marginBottom: 12,
+  },
+  titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
   },
-  statusContainer: {
+  productName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    flex: 1,
+    marginRight: 12,
+  },
+  sourceType: {
+    fontSize: 11,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  sourceTypeSmall: {
+    fontSize: 9,
+    color: '#9ca3af',
+    fontWeight: '500',
+    marginLeft: 4,
+  },
+  priceSourceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusCategoryContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  productInfo: {
-    flex: 1,
+  inlineDetail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  productName: {
-    fontSize: 18,
-    fontWeight: '700',
+  inlineValue: {
+    marginLeft: 2,
+  },
+  sourceText: {
+    fontSize: 12,
     color: '#1f2937',
-    marginBottom: 2,
+    fontWeight: '600',
+    flexShrink: 0, // Prevent source text from shrinking
+    minWidth: 80, // Ensure minimum width for "Manufacturing"
   },
-  productUnit: {
-    fontSize: 14,
+  sourceDetailContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 4,
+    flex: 1,
+    minWidth: 120, // Set minimum width to accommodate "Source: Manufacturing"
+  },
+  sourceLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+    flexShrink: 0, // Prevent label from shrinking
+  },
+  subcategoryText: {
+    fontSize: 11,
     color: '#6b7280',
     fontWeight: '500',
   },
   productDetails: {
+    gap: 8,
     marginBottom: 12,
-    gap: 4,
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  detailLabel: {
+  detailRowCompact: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  detailColumn: {
+    flex: 1,
+    alignItems: 'flex-start',
+    paddingRight: 12, // Increase from 8 to 12 for more spacing
+    minWidth: 0, // Add this
+  },
+  priceText: {
     fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+    flexShrink: 1, // Allow price to shrink if needed
+  },
+  detailColumnPrice: {
+    flex: 1,
+    alignItems: 'flex-start',
+    paddingRight: 12,
+    minWidth: 0,
+    maxWidth: '60%', // Allow price column to take more space when needed
+  },
+  
+  // Second column (source) should maintain minimum width:
+  detailColumnSource: {
+    flex: 0,
+    alignItems: 'flex-start',
+    paddingRight: 12,
+    minWidth: 120, // Fixed minimum width for source
+  },
+  
+  
+  detailLabel: {
+    fontSize: 12,
     color: '#6b7280',
     fontWeight: '500',
   },
   detailValue: {
     fontSize: 14,
-    color: '#1f2937',
     fontWeight: '600',
-  },
-  sourceType: {
-    textTransform: 'capitalize',
-  },
-  lowStock: {
-    color: '#dc2626',
+    color: '#1f2937',
   },
   productFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#f3f4f6',
+    paddingTop: 8,
   },
-  subcategoryText: {
-    fontSize: 12,
+  footerLeft: {
+    alignItems: 'flex-start',
+  },
+  footerRight: {
+    alignItems: 'flex-end',
+  },
+  productLocation: {
+    fontSize: 11,
     color: '#6b7280',
-    fontWeight: '500',
   },
-  locationText: {
-    fontSize: 12,
-    color: '#6b7280',
+  productSubcategory: {
+    fontSize: 11,
+    color: '#9ca3af',
   },
-  stockIndicator: {
+  statusBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignItems: 'center',
   },
-  stockIndicatorText: {
+  statusText: {
     fontSize: 10,
     fontWeight: '600',
   },
@@ -825,36 +789,36 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingVertical: 40,
   },
   emptyText: {
     fontSize: 16,
     color: '#6b7280',
+    marginTop: 16,
     marginBottom: 16,
     textAlign: 'center',
   },
   clearSearchButton: {
-    backgroundColor: '#f3f4f6',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 8,
     marginBottom: 16,
   },
   clearSearchButtonText: {
-    color: '#374151',
-    fontWeight: '500',
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   createFirstButton: {
-    backgroundColor: '#2563eb',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    backgroundColor: '#10b981',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 8,
   },
   createFirstButtonText: {
     color: 'white',
+    fontSize: 14,
     fontWeight: '600',
-  },
-  formulaName: {
-    textTransform: 'capitalize',
   },
 });

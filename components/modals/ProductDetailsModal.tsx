@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { TextInput, Button } from 'react-native-paper';
 import {
   X,
@@ -21,16 +22,20 @@ import {
   Trash2,
   Check,
   Beaker,
+  Plus,
+  CircleDollarSign,
+  TrendingUp,
 } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { updateProduct, deleteProduct } from '../../store/slices/productsSlice';
-import { fetchFormulaById } from '../../store/slices/formulasSlice';
+import { fetchFormulaById, fetchFormulas } from '../../store/slices/formulasSlice';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import Toast from 'react-native-toast-message';
 import { Picker } from '@react-native-picker/picker';
 import { IfMaster } from '../IfMaster';
+import { CreateFormulaModal } from './CreateFormulaModal';
 import { ProductDetailsModalProps } from '@/types/general';
 import { handelProductEdit } from '@/types/product';
 
@@ -46,10 +51,13 @@ const validationSchema = Yup.object({
 });
 
 export default function ProductDetailsModal({ visible, onClose, product, onProductUpdated }: ProductDetailsModalProps) {
+  const router = useRouter();
   const dispatch = useAppDispatch();
   const [editMode, setEditMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [productFormula, setProductFormula] = useState<any>(null);
+  const [showFormulaModal, setShowFormulaModal] = useState(false);
+  const [editingFormula, setEditingFormula] = useState<any>(null);
 
   const subcategories = useAppSelector(state => state.subcategories.list || []);
   const locations = useAppSelector(state => state.locations.list || []);
@@ -220,20 +228,32 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
               <View style={styles.detailsGrid}>
                 <View style={styles.detailCard}>
                   <DollarSign size={24} color="#059669" />
-                  <Text style={styles.detailLabel}>Price</Text>
+                  <Text style={styles.detailLabel}>Price per Unit</Text>
                   <Text style={styles.detailValue}>₹{(parseFloat(product.price?.toString()) || 0).toFixed(2)}</Text>
+                </View>
+
+                <View style={styles.detailCard}>
+                  <CircleDollarSign size={24} color="#0ea5e9" />
+                  <Text style={styles.detailLabel}>Total Value</Text>
+                                      <Text style={styles.detailValue}>₹{((product as any).total_value || 0).toFixed(2)}</Text>
+                </View>
+
+                <View style={styles.detailCard}>
+                  <TrendingUp size={24} color="#16a34a" />
+                  <Text style={styles.detailLabel}>Current Stock</Text>
+                                      <Text style={styles.detailValue}>{(product as any).current_stock || 0} {product.unit}</Text>
+                </View>
+
+                <View style={styles.detailCard}>
+                  <AlertTriangle size={24} color="#f59e0b" />
+                  <Text style={styles.detailLabel}>Min Threshold</Text>
+                  <Text style={styles.detailValue}>{product.min_stock_threshold || 0} {product.unit}</Text>
                 </View>
 
                 <View style={styles.detailCard}>
                   <Ruler size={24} color="#8b5cf6" />
                   <Text style={styles.detailLabel}>Unit</Text>
                   <Text style={styles.detailValue}>{product.unit || 'N/A'}</Text>
-                </View>
-
-                <View style={styles.detailCard}>
-                  <AlertTriangle size={24} color="#f59e0b" />
-                  <Text style={styles.detailLabel}>Min Stock</Text>
-                  <Text style={styles.detailValue}>{product.min_stock_threshold || 0}</Text>
                 </View>
 
                 <View style={styles.detailCard}>
@@ -250,42 +270,144 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                 </View>
               )}
 
-              {/* Formula Information */}
-              {productFormula && (
-                <View style={styles.formulaCard}>
-                  <View style={styles.formulaHeader}>
+              {/* Formula Management Section */}
+              <View style={styles.formulaManagementCard}>
+                <View style={styles.formulaManagementHeader}>
+                  <View style={styles.formulaHeaderLeft}>
                     <Beaker size={24} color="#059669" />
-                    <Text style={styles.formulaTitle}>Manufacturing Formula</Text>
+                    <Text style={styles.formulaManagementTitle}>Manufacturing Formula</Text>
                   </View>
-                  
-                  <View style={styles.formulaInfo}>
-                    <Text style={styles.formulaName}>{productFormula.name}</Text>
-                    {productFormula.description && (
-                      <Text style={styles.formulaDescription}>{productFormula.description}</Text>
-                    )}
-                  </View>
-
-                  {productFormula.components && productFormula.components.length > 0 && (
-                    <View style={styles.componentsSection}>
-                      <Text style={styles.componentsTitle}>Components Required:</Text>
-                      {productFormula.components.map((component: any, index: number) => (
-                        <View key={component?.id || index} style={styles.componentItem}>
-                          <View style={styles.componentDot} />
-                          <Text style={styles.componentName}>{component?.component_name || 'Unknown Component'}</Text>
-                          <Text style={styles.componentQuantity}>{component?.quantity || 0} units</Text>
-                        </View>
-                      ))}
-                    </View>
+                  {productFormula && (
+                    <IfMaster>
+                      <View style={styles.formulaActions}>
+                        <TouchableOpacity 
+                          style={styles.formulaIconButton}
+                          onPress={() => {
+                            if (productFormula) {
+                              // Use CreateFormulaModal edit logic pattern
+                              setEditingFormula(productFormula);
+                              setShowFormulaModal(true);
+                            }
+                          }}
+                        >
+                          <Edit size={16} color="#2563eb" />
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          style={styles.formulaIconButton}
+                          onPress={() => {
+                            Alert.alert(
+                              'Remove Formula',
+                              `Are you sure you want to remove "${productFormula.name}" from this product?`,
+                              [
+                                { text: 'Cancel', style: 'cancel' },
+                                { 
+                                  text: 'Remove', 
+                                  style: 'destructive',
+                                  onPress: async () => {
+                                    try {
+                                      // Update product to remove formula
+                                      const updateData = {
+                                        name: product.name,
+                                        price: parseFloat(product.price?.toString()) || 0,
+                                        min_stock_threshold: parseInt(product.min_stock_threshold?.toString()) || 0,
+                                        unit: product.unit,
+                                        category: product.category as any,
+                                        subcategory_id: parseInt(product.subcategory_id?.toString()) || 0,
+                                        location_id: parseInt(product.location_id?.toString()) || 0,
+                                        source_type: product.source_type as any,
+                                        product_formula_id: null
+                                      };
+                                      await dispatch(updateProduct({
+                                        id: product?.id!,
+                                        data: updateData
+                                      })).unwrap();
+                                      
+                                      Toast.show({
+                                        type: 'success',
+                                        text1: 'Success',
+                                        text2: 'Formula removed from product',
+                                      });
+                                      
+                                      setProductFormula(null);
+                                      onProductUpdated?.();
+                                    } catch (error: any) {
+                                      Toast.show({
+                                        type: 'error',
+                                        text1: 'Error',
+                                        text2: error.message || 'Failed to remove formula',
+                                      });
+                                    }
+                                  }
+                                }
+                              ]
+                            );
+                          }}
+                        >
+                          <Trash2 size={14} color="#ef4444" />
+                          <Text style={[styles.formulaActionText, styles.formulaDeleteText]}>Remove</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </IfMaster>
                   )}
-                  
-                  <View style={styles.formulaMeta}>
-                    <Text style={styles.formulaMetaText}>
-                      Formula ID: {productFormula.id} • 
-                      Created: {productFormula.created_at ? new Date(productFormula.created_at).toLocaleDateString() : 'Unknown'}
+                </View>
+
+                {/* Add Formula Button for products without formulas */}
+                {!productFormula && product.source_type === 'manufacturing' && (
+                  <IfMaster>
+                    <TouchableOpacity 
+                      style={styles.addFormulaButton}
+                      onPress={() => {
+                        setEditingFormula(null);
+                        setShowFormulaModal(true);
+                      }}
+                    >
+                      <Plus size={16} color="#2563eb" />
+                      <Text style={styles.addFormulaText}>Add Formula</Text>
+                    </TouchableOpacity>
+                  </IfMaster>
+                )}
+
+                {productFormula ? (
+                  <>
+                    <View style={styles.formulaInfo}>
+                      <Text style={styles.formulaName}>{productFormula.name}</Text>
+                      {productFormula.description && (
+                        <Text style={styles.formulaDescription}>{productFormula.description}</Text>
+                      )}
+                    </View>
+
+                    {productFormula.components && productFormula.components.length > 0 && (
+                      <View style={styles.componentsSection}>
+                        <Text style={styles.componentsTitle}>Components Required:</Text>
+                        {productFormula.components.map((component: any, index: number) => (
+                          <View key={component?.id || index} style={styles.componentItem}>
+                            <View style={styles.componentDot} />
+                            <Text style={styles.componentName}>{component?.component_name || 'Unknown Component'}</Text>
+                            <Text style={styles.componentQuantity}>{component?.quantity || 0} units</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                    
+                    <View style={styles.formulaMeta}>
+                      <Text style={styles.formulaMetaText}>
+                        Formula ID: {productFormula.id} • 
+                        Created: {productFormula.created_at ? new Date(productFormula.created_at).toLocaleDateString() : 'Unknown'}
+                      </Text>
+                    </View>
+                  </>
+                ) : (
+                  <View style={styles.noFormulaState}>
+                    <Text style={styles.noFormulaText}>No formula assigned to this product</Text>
+                    <Text style={styles.noFormulaSubtext}>
+                      {product.source_type === 'manufacturing' 
+                        ? 'Create a formula to define the manufacturing process'
+                        : 'This trading product does not require a formula'
+                      }
                     </Text>
                   </View>
-                </View>
-              )}
+                )}
+              </View>
 
               <View style={styles.metaCard}>
                 <Text style={styles.metaLabel}>Product Information</Text>
@@ -596,6 +718,31 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
             </TouchableOpacity>
           </View>
         )}
+
+        {/* Formula Modal */}
+        <CreateFormulaModal
+          isVisible={showFormulaModal}
+          onClose={() => {
+            setShowFormulaModal(false);
+            setEditingFormula(null);
+          }}
+          editingFormula={editingFormula}
+          onSuccess={(formula) => {
+            // Refresh formulas and product formula
+            dispatch(fetchFormulas());
+            if (product?.product_formula_id) {
+              dispatch(fetchFormulaById(product.product_formula_id))
+                .unwrap()
+                .then((response) => {
+                  setProductFormula(response.data);
+                })
+                .catch(() => {
+                  setProductFormula(null);
+                });
+            }
+            onProductUpdated?.();
+          }}
+        />
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -968,5 +1115,105 @@ const styles = StyleSheet.create({
   formulaMetaText: {
     fontSize: 12,
     color: '#9ca3af',
+  },
+  
+  // Formula Management Styles
+  formulaManagementCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  formulaManagementHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  formulaHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  formulaManagementTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  formulaActions: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  formulaActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  formulaIconButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    marginLeft: 8,
+  },
+  addFormulaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#eff6ff',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#93c5fd',
+    marginTop: 12,
+    gap: 6,
+  },
+  addFormulaText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#2563eb',
+  },
+  formulaDeleteButton: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+  },
+  formulaActionText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  formulaDeleteText: {
+    color: '#ef4444',
+  },
+  noFormulaState: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  noFormulaText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  noFormulaSubtext: {
+    fontSize: 12,
+    color: '#9ca3af',
+    textAlign: 'center',
   },
 }); 

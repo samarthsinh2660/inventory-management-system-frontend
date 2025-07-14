@@ -1,3 +1,5 @@
+
+
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,18 +8,27 @@ import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { fetchNotifications, resolveAlert, checkAlerts} from '../../store/slices/alertsSlice';
+import { createInventoryEntry, fetchInventoryBalance } from '../../store/slices/inventorySlice';
+import { fetchProducts } from '../../store/slices/productsSlice';
+import { fetchLocations } from '../../store/slices/locationsSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
+import ResolveAlertModal from '../../components/modals/ResolveAlertModal';
 import Toast from 'react-native-toast-message';
 import { Notification } from '@/types/alerts';
+import { InventoryEntryType, CreateInventoryEntryData } from '@/types/inventory';
 
 export default function Alerts() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { notifications, loading } = useAppSelector(state => state.alerts);
+  const products = useAppSelector(state => state.products.list);
+  const locations = useAppSelector(state => state.locations.list);
   const unresolvedCount = useAppSelector(state => 
     state.alerts.notifications.filter(notification => !notification.is_read).length
   );
   const [refreshing, setRefreshing] = useState(false);
+  const [showResolveModal, setShowResolveModal] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
 
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
@@ -30,22 +41,62 @@ export default function Alerts() {
 
   useEffect(() => {
     dispatch(fetchNotifications());
+    dispatch(fetchProducts({ page: 1, limit: 100 }));
+    dispatch(fetchLocations());
   }, [dispatch]);
 
-  const handleResolveAlert = async (alertId: number) => {
+  const handleResolveClick = (notification: Notification) => {
+    setSelectedNotification(notification);
+    setShowResolveModal(true);
+  };
+
+  const handleResolveAlert = async (quantity: number) => {
+    if (!selectedNotification) return;
+
     try {
-      await dispatch(resolveAlert(alertId)).unwrap();
+      // First, find the product and location details
+      const product = products.find(p => p.name === selectedNotification.product_name);
+      const location = locations.find(l => l.name === selectedNotification.location_name);
+
+      if (!product || !location) {
+        throw new Error('Product or location not found');
+      }
+
+      // Step 1: Resolve the alert
+      await dispatch(resolveAlert(selectedNotification.stock_alert_id)).unwrap();
+
+      // Step 2: Create inventory entry with the specified quantity
+      const entryData: CreateInventoryEntryData = {
+        product_id: product.id,
+        quantity: quantity,
+        entry_type: InventoryEntryType.MANUAL_IN,
+        location_id: location.id,
+        notes: `Auto-generated entry from alert resolution - ${selectedNotification.product_name}`,
+        // No reference_id needed for alert resolution
+      };
+
+      await dispatch(createInventoryEntry(entryData)).unwrap();
+
+      // Step 3: Refresh inventory balance and notifications
+      await Promise.all([
+        dispatch(fetchInventoryBalance()),
+        dispatch(fetchNotifications())
+      ]);
+
       Toast.show({
         type: 'success',
         text1: 'Alert Resolved',
-        text2: 'Alert has been marked as resolved',
+        text2: `Added ${quantity} units and resolved the alert`,
       });
+
+      setSelectedNotification(null);
     } catch (error: any) {
       Toast.show({
         type: 'error',
         text1: 'Error',
         text2: error.message || 'Failed to resolve alert',
       });
+      throw error; // Re-throw to handle in modal
     }
   };
 
@@ -73,9 +124,9 @@ export default function Alerts() {
       <View style={styles.alertHeader}>
         <View style={styles.alertIcon}>
           {item.is_read ? (
-            <CheckCircle size={20} color="#10b981" />
+            <CheckCircle size={16} color="#10b981" />
           ) : (
-            <AlertTriangle size={20} color="#ef4444" />
+            <AlertTriangle size={16} color="#ef4444" />
           )}
         </View>
         <View style={styles.alertContent}>
@@ -85,7 +136,7 @@ export default function Alerts() {
         {!item.is_read && (
           <TouchableOpacity
             style={styles.resolveButton}
-            onPress={() => handleResolveAlert(item.stock_alert_id)}
+            onPress={() => handleResolveClick(item)}
           >
             <Text style={styles.resolveButtonText}>Resolve</Text>
           </TouchableOpacity>
@@ -93,16 +144,12 @@ export default function Alerts() {
       </View>
       
       <View style={styles.stockInfo}>
-        <View style={styles.stockItem}>
-          <Text style={styles.stockLabel}>Current Stock</Text>
-          <Text style={[styles.stockValue, { color: '#ef4444' }]}>
-            {item.current_stock}
-          </Text>
-        </View>
-        <View style={styles.stockItem}>
-          <Text style={styles.stockLabel}>Minimum Required</Text>
+        <Text style={styles.stockText}>
+          <Text style={styles.stockLabel}>Current: </Text>
+          <Text style={[styles.stockValue, { color: '#ef4444' }]}>{item.current_stock}</Text>
+          <Text style={styles.stockLabel}> • Min Required: </Text>
           <Text style={styles.stockValue}>{item.min_threshold}</Text>
-        </View>
+        </Text>
       </View>
       
       <Text style={styles.alertDate}>
@@ -129,7 +176,7 @@ export default function Alerts() {
           <ArrowLeft size={20} color="#2563eb" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.title}>Stock Notifications</Text>
+          <Text style={styles.title}>Stock Alerts</Text>
           <Text style={styles.subtitle}>
             {unresolvedCount} unread notification{unresolvedCount !== 1 ? 's' : ''}
           </Text>
@@ -162,6 +209,16 @@ export default function Alerts() {
             </Text>
           </View>
         }
+      />
+
+      <ResolveAlertModal
+        visible={showResolveModal}
+        onClose={() => {
+          setShowResolveModal(false);
+          setSelectedNotification(null);
+        }}
+        notification={selectedNotification}
+        onResolve={handleResolveAlert}
       />
     </SafeAreaView>
   );
@@ -223,10 +280,10 @@ const styles = StyleSheet.create({
   },
   alertCard: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderLeftWidth: 3,
     borderLeftColor: '#ef4444',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -241,60 +298,62 @@ const styles = StyleSheet.create({
   alertHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 6,
   },
   alertIcon: {
-    marginRight: 12,
+    marginRight: 8,
   },
   alertContent: {
     flex: 1,
   },
   productName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#1f2937',
+    lineHeight: 18,
   },
   location: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6b7280',
-    marginTop: 2,
+    marginTop: 1,
+    lineHeight: 16,
   },
   resolveButton: {
     backgroundColor: '#10b981',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
   },
   resolveButtonText: {
     color: 'white',
     fontWeight: '600',
-    fontSize: 12,
+    fontSize: 10,
   },
   stockInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     backgroundColor: '#f9fafb',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginBottom: 4,
   },
-  stockItem: {
-    alignItems: 'center',
+  stockText: {
+    fontSize: 12,
+    lineHeight: 16,
   },
   stockLabel: {
     fontSize: 12,
     color: '#6b7280',
-    marginBottom: 4,
   },
   stockValue: {
-    fontSize: 18,
+    fontSize: 12,
     fontWeight: '700',
     color: '#1f2937',
   },
   alertDate: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#9ca3af',
     textAlign: 'right',
+    marginTop: 2,
   },
   emptyContainer: {
     flex: 1,

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Package, TrendingUp, TriangleAlert as AlertTriangle, Activity, ChartBar as BarChart3, Bell, ArrowRight, Clock, Target, Zap, Users } from 'lucide-react-native';
+import { Package, TrendingUp, TriangleAlert as AlertTriangle, Activity, ChartBar as BarChart3, Bell, Target, Zap, Users } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
@@ -12,14 +12,14 @@ import { fetchAlerts, fetchNotifications } from '../../store/slices/alertsSlice'
 import { fetchUsers } from '../../store/slices/usersSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { 
-  getUsernameById, 
   getTodayEntries, 
   getLowStockProducts, 
   calculateTotalInventoryValue, 
   getInStockProductsCount, 
   getEntryCountsByType 
 } from '../../utils/helperFunctions';
-import { UserRole } from '@/types/user';
+import { UserRole, User } from '@/types/user';
+import { Notification } from '@/types/alerts';
 
 const { width } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -38,7 +38,7 @@ export default function Dashboard() {
   const isMaster = user?.role === UserRole.MASTER;
 
   // Calculate unresolved alerts count from notifications
-  const unresolvedAlertsCount = notifications.filter(notification => !notification.is_read).length;
+  const unresolvedAlertsCount = notifications.filter((notification: Notification) => !notification.is_read).length;
   const todayEntries = getTodayEntries(inventoryEntries, userEntries, users, isMaster);
   const myEntries = isMaster ? inventoryEntries : userEntries;
   const myTodayEntries = todayEntries;
@@ -194,6 +194,7 @@ export default function Dashboard() {
                 value={products.length}
                 subtitle={`${inStockProducts} in stock`}
                 icon={<Package size={24} color="#2563eb" />}
+                onPress={() => router.push('/products')}
                 trend="up"
                 size="large"
               />
@@ -215,6 +216,7 @@ export default function Dashboard() {
                 subtitle={`${totalInEntries} in, ${totalOutEntries} out`}
                 icon={<Activity size={20} color="#f59e0b" />}
                 color="#f59e0b"
+                onPress={() => router.push('/inventory')}
                 trend="neutral"
               />
               <StatCard
@@ -229,34 +231,14 @@ export default function Dashboard() {
               <StatCard
                 title="Total Users"
                 value={users.length}
-                subtitle={`${users.filter(u => u.role === UserRole.MASTER).length} masters`}
+                subtitle={`${users.filter((u: User) => u.role === UserRole.MASTER).length} masters`}
                 icon={<Users size={20} color="#8b5cf6" />}
                 color="#8b5cf6"
+                onPress={() => router.push('/(auth)/user-management')}
                 trend="neutral"
               />
             </View>
           </View>
-
-          {/* Alerts Card for Master */}
-          {unresolvedAlertsCount > 0 && (
-            <TouchableOpacity 
-              style={styles.alertsCard}
-              onPress={() => router.push('/alerts')}
-            >
-              <View style={styles.alertsHeader}>
-                <View style={styles.alertsIcon}>
-                  <AlertTriangle size={20} color="#ef4444" />
-                </View>
-                <View style={styles.alertsContent}>
-                  <Text style={styles.alertsTitle}>Critical Stock Alerts</Text>
-                  <Text style={styles.alertsSubtitle}>
-                    {unresolvedAlertsCount} product{unresolvedAlertsCount !== 1 ? 's' : ''} below minimum threshold
-                  </Text>
-                </View>
-                <ArrowRight size={20} color="#6b7280" />
-              </View>
-            </TouchableOpacity>
-          )}
         </IfMaster>
 
         {/* Employee Dashboard */}
@@ -269,6 +251,7 @@ export default function Dashboard() {
                 subtitle={`${myTodayEntries.filter(e => e.entry_type.includes('in')).length} in, ${myTodayEntries.filter(e => e.entry_type.includes('out')).length} out`}
                 icon={<Activity size={24} color="#2563eb" />}
                 color="#2563eb"
+                onPress={() => router.push('/inventory')}
                 trend="up"
                 size="large"
               />
@@ -278,6 +261,7 @@ export default function Dashboard() {
                 subtitle={`${inStockProducts} available`}
                 icon={<Package size={24} color="#10b981" />}
                 color="#10b981"
+                onPress={() => router.push('/products')}
                 trend="neutral"
                 size="large"
               />
@@ -290,6 +274,7 @@ export default function Dashboard() {
                 subtitle="All time entries"
                 icon={<Target size={20} color="#f59e0b" />}
                 color="#f59e0b"
+                onPress={() => router.push('/inventory')}
                 trend="up"
               />
               <StatCard
@@ -305,92 +290,6 @@ export default function Dashboard() {
           </View>
         )}
 
-        {/* Recent Activity Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              {isMaster ? 'Recent Activity' : 'My Recent Activity'}
-            </Text>
-            <TouchableOpacity onPress={() => router.push('/inventory')}>
-              <Text style={styles.sectionLink}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {(isMaster ? todayEntries : myTodayEntries).slice(0, 5).map((entry) => (
-            <View key={entry.id} style={styles.activityItem}>
-              <View style={[styles.activityIcon, { 
-                backgroundColor: entry.entry_type.includes('in') ? '#dcfce7' : '#fef2f2' 
-              }]}>
-                <TrendingUp 
-                  size={16} 
-                  color={entry.entry_type.includes('in') ? '#16a34a' : '#dc2626'} 
-                  style={{ 
-                    transform: [{ rotate: entry.entry_type.includes('in') ? '0deg' : '180deg' }] 
-                  }}
-                />
-              </View>
-              <View style={styles.activityContent}>
-                <Text style={styles.activityProduct} numberOfLines={1}>{entry.product_name}</Text>
-                <Text style={styles.activityDetails} numberOfLines={1}>
-                  {entry.entry_type.replace('_', ' ').toUpperCase()}: {entry.quantity} units
-                </Text>
-                <View style={styles.activityMeta}>
-                  <Clock size={12} color="#9ca3af" />
-                  <Text style={styles.activityTime} numberOfLines={1}>
-                    {new Date(entry.created_at).toLocaleTimeString()} • {entry.location_name}
-                  </Text>
-                  {isMaster && (
-                    <Text style={styles.activityUser} numberOfLines={1}>
-                      by {entry.username}
-                    </Text>
-                  )}
-                </View>
-              </View>
-            </View>
-          ))}
-          
-          {(isMaster ? todayEntries : myTodayEntries).length === 0 && (
-            <View style={styles.emptyState}>
-              <Activity size={32} color="#d1d5db" />
-              <Text style={styles.emptyText}>
-                {isMaster ? 'No activities today' : 'No entries today'}
-              </Text>
-              <Text style={styles.emptySubtext}>
-                {isMaster ? 'Team activities will appear here' : 'Start by adding inventory entries'}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Low Stock Products Section (Master Only) */}
-        <IfMaster>
-          {lowStockProducts.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Low Stock Products</Text>
-                <TouchableOpacity onPress={() => router.push('/alerts')}>
-                  <Text style={styles.sectionLink}>View Alerts</Text>
-                </TouchableOpacity>
-              </View>
-              {lowStockProducts.slice(0, 3).map((product) => (
-                <View key={product.id} style={styles.alertItem}>
-                  <View style={styles.alertContent}>
-                    <Text style={styles.alertProductName} numberOfLines={1}>{product.name}</Text>
-                    <Text style={styles.alertDetails} numberOfLines={1}>
-                      Current: {product.current_stock} {product.unit} | 
-                      Min: {product.min_stock_threshold} {product.unit}
-                    </Text>
-                    <Text style={styles.alertLocation} numberOfLines={1}>{product.location_name}</Text>
-                  </View>
-                  <View style={styles.alertBadge}>
-                    <AlertTriangle size={16} color="#ef4444" />
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-        </IfMaster>
-
         {/* Quick Actions */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -403,13 +302,6 @@ export default function Dashboard() {
             >
               <Activity size={24} color="#2563eb" />
               <Text style={styles.quickActionText}>Add Entry</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.quickActionCard}
-              onPress={() => router.push('/products')}
-            >
-              <Package size={24} color="#10b981" />
-              <Text style={styles.quickActionText}>View Products</Text>
             </TouchableOpacity>
             <IfMaster>
               <TouchableOpacity 
@@ -574,43 +466,7 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     marginTop: 2,
   },
-  alertsCard: {
-    margin: 20,
-    marginTop: 0,
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#ef4444',
-    shadowColor: '#ef4444',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  alertsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  alertsIcon: {
-    marginRight: 16,
-    padding: 8,
-    backgroundColor: '#fef2f2',
-    borderRadius: 12,
-  },
-  alertsContent: {
-    flex: 1,
-  },
-  alertsTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1f2937',
-    marginBottom: 2,
-  },
-  alertsSubtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
+
   section: {
     margin: 20,
     marginTop: 8,
@@ -631,111 +487,7 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontWeight: '600',
   },
-  alertItem: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderLeftWidth: 4,
-    borderLeftColor: '#ef4444',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  alertContent: {
-    flex: 1,
-  },
-  alertProductName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  alertDetails: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2,
-  },
-  alertLocation: {
-    fontSize: 11,
-    color: '#9ca3af',
-    marginTop: 2,
-  },
-  alertBadge: {
-    padding: 8,
-  },
-  activityItem: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  activityIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  activityContent: {
-    flex: 1,
-  },
-  activityProduct: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 2,
-  },
-  activityDetails: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 4,
-  },
-  activityMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    flexWrap: 'wrap',
-  },
-  activityTime: {
-    fontSize: 12,
-    color: '#9ca3af',
-    flex: 1,
-  },
-  activityUser: {
-    fontSize: 12,
-    color: '#2563eb',
-    fontWeight: '500',
-  },
-  emptyState: {
-    alignItems: 'center',
-    padding: 32,
-    backgroundColor: 'white',
-    borderRadius: 12,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6b7280',
-    marginTop: 12,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#9ca3af',
-    marginTop: 4,
-    textAlign: 'center',
-  },
+
   quickActions: {
     flexDirection: 'row',
     gap: 12,

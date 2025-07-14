@@ -19,14 +19,12 @@ import {
   usePagination
 } from '../../utils/helperFunctions';
 import InventoryEntryDetailsModal from '../../components/modals/InventoryEntryDetailsModal';
-import AllBalancesModal from '../../components/modals/AllBalancesModal';
 import { UserRole } from '@/types/user';
 import { 
   InventoryEntryType, 
   InventoryEntry,
   CreateInventoryEntryData ,
   InventoryFormValues,
-  StockCardProps,
   EntryItemProps
 } from '@/types/inventory';
 import { ViewMode } from '@/types/general';
@@ -60,7 +58,6 @@ export default function InventoryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<InventoryEntry | null>(null);
   const [showEntryDetails, setShowEntryDetails] = useState(false);
-  const [showAllBalances, setShowAllBalances] = useState(false);
   const itemsPerPage = 10;
 
   const isMaster = user?.role === UserRole.MASTER;
@@ -185,51 +182,6 @@ export default function InventoryScreen() {
 
   const recentEntries = entries.slice(0, 10);
 
-  const StockCard = ({ product }: StockCardProps) => {
-    // Find stock information for this product from balance
-    const stockInfo = balance.find(item => item.product_id === product.id);
-    const currentStock = stockInfo ? stockInfo.total_quantity : 0;
-    const minThreshold = product.min_stock_threshold || 0;
-    const pricePerUnit = stockInfo?.price_per_unit || parseFloat(product.price?.toString()) || 0;
-    const totalPrice = stockInfo?.total_price || (pricePerUnit * currentStock);
-    
-    return (
-      <View style={styles.stockCard}>
-        <View style={styles.stockHeader}>
-          <Text style={styles.stockProductName}>{product.name || 'Unknown Product'}</Text>
-          <View style={[styles.stockBadge, { 
-            backgroundColor: currentStock < minThreshold ? '#fef2f2' : '#f0fdf4' 
-          }]}>
-            <Text style={[styles.stockBadgeText, { 
-              color: currentStock < minThreshold ? '#dc2626' : '#16a34a' 
-            }]}>
-              {currentStock < minThreshold ? 'Low' : 'OK'}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.stockDetails}>
-          <View style={styles.stockItem}>
-            <Text style={styles.stockLabel}>Current Stock</Text>
-            <Text style={styles.stockValue}>{currentStock || 0} {product.unit || 'units'}</Text>
-          </View>
-          <View style={styles.stockItem}>
-            <Text style={styles.stockLabel}>Min Threshold</Text>
-            <Text style={styles.stockValue}>{minThreshold || 0} {product.unit || 'units'}</Text>
-          </View>
-          <View style={styles.stockItem}>
-            <Text style={styles.stockLabel}>Price/Unit</Text>
-            <Text style={styles.stockValue}>₹{(parseFloat(pricePerUnit?.toString()) || 0).toFixed(2)}</Text>
-          </View>
-          <View style={styles.stockItem}>
-            <Text style={styles.stockLabel}>Total Value</Text>
-            <Text style={styles.stockValue}>₹{(parseFloat(totalPrice?.toString()) || 0).toFixed(2)}</Text>
-          </View>
-        </View>
-        <Text style={styles.stockLocation}>{stockInfo?.location_name || 'Unknown Location'}</Text>
-      </View>
-    );
-  };
-
   const EntryItem = ({ entry }: EntryItemProps) => {
     const displayUsername = entry.username || 'Unknown User';
     
@@ -272,11 +224,9 @@ export default function InventoryScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <TouchableOpacity onPress={() => setShowEntryForm(false)}>
-              <Text style={styles.backButton}>← Back</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity onPress={() => setShowEntryForm(false)} style={styles.backButtonContainer}>
+            <ChevronLeft size={24} color="#2563eb" />
+          </TouchableOpacity>
           <Text style={styles.title}>New Inventory Entry</Text>
           <View style={styles.headerRight}>
             {/* Empty view for balanced layout */}
@@ -445,25 +395,6 @@ export default function InventoryScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Stock Levels</Text>
-            <TouchableOpacity onPress={() => setShowAllBalances(true)}>
-              <Text style={styles.sectionLink}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.stockList}
-            contentContainerStyle={{ paddingLeft: 20 }}
-          >
-            {products.slice(0, 5).map(product => (
-              <StockCard key={product.id} product={product} />
-            ))}
-          </ScrollView>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>
               {viewMode === 'all' ? 'All Inventory Entries' : 'My Inventory Entries'}
             </Text>
@@ -525,11 +456,6 @@ export default function InventoryScreen() {
         }}
         entry={selectedEntry}
       />
-
-      <AllBalancesModal
-        visible={showAllBalances}
-        onClose={() => setShowAllBalances(false)}
-      />
     </SafeAreaView>
   );
 }
@@ -586,14 +512,9 @@ const styles = StyleSheet.create({
   logToggleTextActive: {
     color: '#2563eb',
   },
-  backButton: {
-    fontSize: 16,
-    color: '#2563eb',
-    fontWeight: '500',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  backButtonContainer: {
+    padding: 8,
+    marginLeft: -8,
   },
   headerRight: {
     width: 40,

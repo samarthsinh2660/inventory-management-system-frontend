@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FileText, RotateCcw, Plus, Minus, CreditCard as Edit, Filter } from 'lucide-react-native';
+import { FileText, RotateCcw, Plus, Minus, CreditCard as Edit, Filter, ArrowLeft } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { fetchAuditLogs, deleteAuditLog } from '../../store/slices/auditLogsSlice';
@@ -11,6 +12,7 @@ import { UserRole } from '@/types/user';
 import { AuditAction, AuditLog } from '@/types/log';
 
 export default function AuditLogs() {
+  const router = useRouter();
   const dispatch = useAppDispatch();
   const { list: auditLogs = [], loading } = useAppSelector(state => state.auditLogs);
   const user = useAppSelector(state => state.auth.user);
@@ -247,6 +249,12 @@ export default function AuditLogs() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <ArrowLeft size={20} color="#2563eb" />
+        </TouchableOpacity>
         <View style={styles.headerContent}>
           <FileText size={24} color="#2563eb" />
           <View>
@@ -318,11 +326,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
+  backButton: {
+    padding: 8,
+    marginLeft: -8,
+  },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     flex: 1,
+    marginLeft: 12,
   },
   title: {
     fontSize: 24,
