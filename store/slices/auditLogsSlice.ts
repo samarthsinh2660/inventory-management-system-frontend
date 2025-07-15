@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { API_URL } from '../../utils/constant';
-import { AuditLog, AuditLogsState, FetchAuditLogsParams, DeleteLogParams} from '@/types/log';
+import { AuditLog, AuditLogsState, FetchAuditLogsParams, DeleteLogParams, FlagLogParams, FlagLogResponse} from '@/types/log';
 import { ApiResponse } from '@/types/inventory';
 import { getAuthHeader } from '@/utils/authHelper';
 
@@ -39,6 +39,7 @@ export const fetchAuditLogs = createAsyncThunk(
       if (params.end_date) queryParams.append('end_date', params.end_date);
       if (params.page) queryParams.append('page', params.page.toString());
       if (params.limit) queryParams.append('limit', params.limit.toString());
+      if (params.is_flag !== undefined) queryParams.append('is_flag', params.is_flag.toString());
 
       const query = queryParams.toString() ? `?${queryParams.toString()}` : '';
       const response = await axios.get<ApiResponse<AuditLog[]>>(`${API_URL}/audit-logs${query}`, getAuthHeader(token));
@@ -116,6 +117,33 @@ export const deleteAuditLog = createAsyncThunk(
         return rejectWithValue(error.response.data.message || 'Failed to delete audit log');
       }
       return rejectWithValue('Failed to delete audit log');
+    }
+  }
+);
+
+// Flag/unflag audit log
+export const flagAuditLog = createAsyncThunk(
+  'auditLogs/flagAuditLog',
+  async ({ id, is_flag }: FlagLogParams, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as { auth: { accessToken: string | null } };
+      const token = state.auth.accessToken;
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
+      const response = await axios.patch<FlagLogResponse>(
+        `${API_URL}/audit-logs/${id}/flag`,
+        { is_flag },
+        getAuthHeader(token)
+      );
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        return rejectWithValue(error.response.data.message || 'Failed to flag audit log');
+      }
+      return rejectWithValue('Failed to flag audit log');
     }
   }
 );
@@ -200,6 +228,26 @@ const auditLogsSlice = createSlice({
       .addCase(deleteAuditLog.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string || 'Failed to delete audit log';
+      })
+
+      // Flag audit log
+      .addCase(flagAuditLog.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(flagAuditLog.fulfilled, (state, action) => {
+        state.loading = false;
+        const updatedLog = action.payload.data;
+        state.list = state.list.map(log => 
+          log.id === updatedLog.id ? updatedLog : log
+        );
+        if (state.selected?.id === updatedLog.id) {
+          state.selected = updatedLog;
+        }
+      })
+      .addCase(flagAuditLog.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string || 'Failed to flag audit log';
       });
   },
 });

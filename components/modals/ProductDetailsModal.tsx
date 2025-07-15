@@ -344,7 +344,6 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                           }}
                         >
                           <Trash2 size={14} color="#ef4444" />
-                          <Text style={[styles.formulaActionText, styles.formulaDeleteText]}>Remove</Text>
                         </TouchableOpacity>
                       </View>
                     </IfMaster>

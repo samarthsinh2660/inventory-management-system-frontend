@@ -11,6 +11,7 @@ import { useAppSelector } from '../../hooks/useAppSelector';
 import { createInventoryEntry, fetchInventoryBalance, fetchInventoryEntries, fetchUserEntries } from '../../store/slices/inventorySlice';
 import { fetchProducts } from '../../store/slices/productsSlice';
 import { fetchLocations } from '../../store/slices/locationsSlice';
+import { fetchSubcategories } from '../../store/slices/subcategoriesSlice';
 import Toast from 'react-native-toast-message';
 import {
   formatEntryType,
@@ -27,6 +28,7 @@ import {
   InventoryFormValues,
   EntryItemProps
 } from '@/types/inventory';
+import { ProductCategory, ProductSourceType } from '@/types/product';
 import { ViewMode } from '@/types/general';
 
 const validationSchema = Yup.object({
@@ -42,6 +44,7 @@ export default function InventoryScreen() {
   const dispatch = useAppDispatch();
   const products = useAppSelector(state => state.products.list || []);
   const locations = useAppSelector(state => state.locations.list || []);
+  const subcategories = useAppSelector(state => state.subcategories.list || []);
   const { 
     entries: allEntries = [], 
     userEntries = [], 
@@ -58,6 +61,14 @@ export default function InventoryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<InventoryEntry | null>(null);
   const [showEntryDetails, setShowEntryDetails] = useState(false);
+  
+  // Product filter states
+  const [productFilters, setProductFilters] = useState({
+    sourceType: '',
+    category: '',
+    subcategoryId: 0,
+  });
+
   const itemsPerPage = 10;
 
   const isMaster = user?.role === UserRole.MASTER;
@@ -78,6 +89,7 @@ export default function InventoryScreen() {
       dispatch(fetchInventoryBalance()),
       dispatch(fetchProducts({ page: 1, limit: 100 })), // Fetch more products to ensure all are available
       dispatch(fetchLocations()),
+      dispatch(fetchSubcategories()),
       loadEntries(),
       // Also refresh user entries if user exists
       user ? dispatch(fetchUserEntries({ page: 1, limit: itemsPerPage })) : Promise.resolve()
@@ -88,8 +100,9 @@ export default function InventoryScreen() {
 
   useEffect(() => {
     // Initial data load
-    dispatch(fetchProducts({ page: 1, limit: 10 }));
+    dispatch(fetchProducts({ page: 1, limit: 100 })); // Fetch more products for filtering
     dispatch(fetchLocations());
+    dispatch(fetchSubcategories());
     dispatch(fetchInventoryBalance());
     loadEntries();
     
@@ -135,6 +148,64 @@ export default function InventoryScreen() {
     const newMode = viewMode === 'all' ? 'mine' : 'all';
     setViewMode(newMode);
     setCurrentPage(1); // Reset to first page when changing views
+  };
+
+  // Filter products based on selected filters
+  const filteredProducts = products.filter(product => {
+    // Filter by source type
+    if (productFilters.sourceType && product.source_type !== productFilters.sourceType) {
+      return false;
+    }
+    
+    // Filter by category
+    if (productFilters.category && product.category !== productFilters.category) {
+      return false;
+    }
+    
+    // Filter by subcategory
+    if (productFilters.subcategoryId > 0 && product.subcategory_id !== productFilters.subcategoryId) {
+      return false;
+    }
+    
+    return true;
+  });
+
+  // Handle filter changes
+  const handleSourceTypeChange = (value: string) => {
+    setProductFilters(prev => ({
+      ...prev,
+      sourceType: value,
+      // Reset product selection when filter changes
+    }));
+    setSelectedProductId(0);
+  };
+
+  const handleCategoryChange = (value: string) => {
+    setProductFilters(prev => ({
+      ...prev,
+      category: value,
+      // Reset subcategory when category changes as they might not be compatible
+      subcategoryId: 0,
+    }));
+    setSelectedProductId(0);
+  };
+
+  const handleSubcategoryChange = (value: number) => {
+    setProductFilters(prev => ({
+      ...prev,
+      subcategoryId: value,
+    }));
+    setSelectedProductId(0);
+  };
+
+  // Reset all filters
+  const resetFilters = () => {
+    setProductFilters({
+      sourceType: '',
+      category: '',
+      subcategoryId: 0,
+    });
+    setSelectedProductId(0);
   };
 
   const handleSubmit = async (
@@ -247,6 +318,75 @@ export default function InventoryScreen() {
           >
             {({ handleChange, handleSubmit, values, errors, touched, setFieldValue }) => (
               <View>
+                {/* Product Filters Section */}
+                <View style={styles.filtersSection}>
+                  <View style={styles.filtersSectionHeader}>
+                    <Text style={styles.filtersSectionTitle}>Product Filters</Text>
+                    <TouchableOpacity onPress={resetFilters} style={styles.resetFiltersButton}>
+                      <Text style={styles.resetFiltersText}>Reset</Text>
+                    </TouchableOpacity>
+                  </View>
+                  
+                  {/* Source Type Filter */}
+                  <View style={styles.pickerContainer}>
+                    <Text style={styles.label}>Source Type</Text>
+                    <View style={styles.picker}>
+                      <Picker
+                        selectedValue={productFilters.sourceType}
+                        onValueChange={handleSourceTypeChange}
+                      >
+                        <Picker.Item label="All Source Types" value="" />
+                        <Picker.Item label="Manufacturing" value={ProductSourceType.MANUFACTURING} />
+                        <Picker.Item label="Trading" value={ProductSourceType.TRADING} />
+                      </Picker>
+                    </View>
+                  </View>
+
+                  {/* Category Filter */}
+                  <View style={styles.pickerContainer}>
+                    <Text style={styles.label}>Category</Text>
+                    <View style={styles.picker}>
+                      <Picker
+                        selectedValue={productFilters.category}
+                        onValueChange={handleCategoryChange}
+                      >
+                        <Picker.Item label="All Categories" value="" />
+                        <Picker.Item label="Raw Materials" value={ProductCategory.RAW} />
+                        <Picker.Item label="Semi-Finished" value={ProductCategory.SEMI} />
+                        <Picker.Item label="Finished Products" value={ProductCategory.FINISHED} />
+                      </Picker>
+                    </View>
+                  </View>
+
+                  {/* Subcategory Filter */}
+                  <View style={styles.pickerContainer}>
+                    <Text style={styles.label}>Subcategory</Text>
+                    <View style={styles.picker}>
+                      <Picker
+                        selectedValue={productFilters.subcategoryId}
+                        onValueChange={handleSubcategoryChange}
+                      >
+                        <Picker.Item label="All Subcategories" value={0} />
+                        {subcategories.map(subcategory => (
+                          <Picker.Item 
+                            key={subcategory.id} 
+                            label={subcategory.name || 'Unknown Subcategory'} 
+                            value={subcategory.id} 
+                          />
+                        ))}
+                      </Picker>
+                    </View>
+                  </View>
+
+                  {/* Filter Results Info */}
+                  <View style={styles.filterResultsInfo}>
+                    <Text style={styles.filterResultsText}>
+                      Showing {filteredProducts.length} of {products.length} products
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Product Selection */}
                 <View style={styles.pickerContainer}>
                   <Text style={styles.label}>Product</Text>
                   <View style={styles.picker}>
@@ -258,7 +398,7 @@ export default function InventoryScreen() {
                       }}
                     >
                       <Picker.Item label="Select a product" value={0} />
-                      {products.map(product => (
+                      {filteredProducts.map(product => (
                         <Picker.Item key={product.id} label={product.name || 'Unknown Product'} value={product.id} />
                       ))}
                     </Picker>
@@ -778,5 +918,49 @@ const styles = StyleSheet.create({
   paginationText: {
     fontSize: 14,
     color: '#4b5563',
+  },
+  filtersSection: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  filtersSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  filtersSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  resetFiltersButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 6,
+  },
+  resetFiltersText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  filterResultsInfo: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  filterResultsText: {
+    fontSize: 14,
+    color: '#2563eb',
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

@@ -16,6 +16,7 @@ export interface AuditLog {
     timestamp: string;
     reason: string | null;
     username: string;
+    is_flag: boolean;
   }
 
 export interface AuditLogsState {
@@ -40,9 +41,23 @@ export interface FetchAuditLogsParams {
     end_date?: string;
     page?: number;
     limit?: number;
+    is_flag?: boolean;
   }
 
   export interface DeleteLogParams {
     id: number;
     revert?: boolean;
+  }
+
+  // Flag/unflag audit log parameters
+  export interface FlagLogParams {
+    id: number;
+    is_flag: boolean;
+  }
+
+  // API response for flag operation
+  export interface FlagLogResponse {
+    success: boolean;
+    data: AuditLog;
+    message: string;
   }
