@@ -73,7 +73,13 @@ export function ProductFiltersModal({
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={styles.content} 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          bounces={true}
+          alwaysBounceVertical={true}
+        >
           {/* Category Filter */}
           <View style={styles.filterSection}>
             <Text style={styles.filterLabel}>Category</Text>
@@ -187,6 +193,9 @@ export function ProductFiltersModal({
         </ScrollView>
 
         <View style={styles.footer}>
+          <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
             <Check size={20} color="white" />
             <Text style={styles.applyButtonText}>Apply Filters</Text>
@@ -206,8 +215,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
@@ -216,7 +225,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   title: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: '#1f2937',
   },
@@ -224,43 +233,62 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   resetText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#2563eb',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+  },
+  scrollContent: {
+    paddingBottom: 20,
   },
   filterSection: {
-    marginVertical: 16,
+    marginVertical: 12,
   },
   filterLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#374151',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   pickerContainer: {
     backgroundColor: 'white',
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#d1d5db',
     overflow: 'hidden',
   },
   picker: {
-    height: 50,
+    height: 60,
   },
   footer: {
-    padding: 20,
+    padding: 16,
     backgroundColor: 'white',
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButtonText: {
+    color: '#374151',
+    fontSize: 15,
+    fontWeight: '600',
   },
   applyButton: {
+    flex: 1,
     backgroundColor: '#2563eb',
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: 10,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -268,7 +296,7 @@ const styles = StyleSheet.create({
   },
   applyButtonText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
 });

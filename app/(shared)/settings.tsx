@@ -283,12 +283,12 @@ export default function Settings() {
               }}
             />
             {!isMaster && (
-              <SettingsItem
-                icon={<FileText size={20} color="#8b5cf6" />}
-                title="Activity Logs"
+            <SettingsItem
+              icon={<FileText size={20} color="#8b5cf6" />}
+              title="Activity Logs"
                 subtitle="View your activity history"
                 onPress={() => router.push('/audit/audit')}
-              />
+            />
             )}
           </View>
         </View>

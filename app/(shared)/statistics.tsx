@@ -454,7 +454,7 @@ export default function Statistics() {
                   value={totalAuditLogs}
                   icon={<FileText />}
                   color="#6b7280"
-                  onPress={() => router.push('/audit')}
+                  onPress={() => router.push('/audit/audit')}
                 />
                 <StatCard
                   title="System Health"

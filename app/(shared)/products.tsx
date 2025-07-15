@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, Search, Filter, X, CircleDollarSign, Package } from 'lucide-react-native';
+import { Plus, Search, Filter, X, CircleDollarSign, Package, ChevronUp } from 'lucide-react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
@@ -20,6 +20,8 @@ import ProductDetailsModal from '../../components/modals/ProductDetailsModal';
 import { Product, FilterState, ProductCategory, ProductSourceType } from '@/types/product';
 import { UserRole } from '@/types/user';
 
+// Using regular FlatList with layout animations
+
 export default function Products() {
   const router = useRouter();
   const dispatch = useAppDispatch();
@@ -35,6 +37,13 @@ export default function Products() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [showProductDetails, setShowProductDetails] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+  const flatListRef = useRef<FlatList<Product>>(null);
+  
+  // Animated scroll values
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const [filtersHeight, setFiltersHeight] = useState(0);
   
   const [filters, setFilters] = useState<FilterState>({
     category: '',
@@ -50,6 +59,36 @@ export default function Products() {
   });
 
   const isMaster = user?.role === UserRole.MASTER;
+
+  // Animated scroll handler
+  const handleScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+    { 
+      useNativeDriver: true, // translateY transforms support native driver
+      listener: (event: any) => {
+        const offsetY = event.nativeEvent.contentOffset.y;
+        setIsScrolled(offsetY > 30);
+        setShowScrollToTop(offsetY > 120);
+      }
+    }
+  );
+
+  // Animated transforms for filters section
+  const filtersTranslateY = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: [0, -(filtersHeight || 120)], // Move up by full height
+    extrapolate: 'clamp',
+  });
+
+  const filtersOpacity = scrollY.interpolate({
+    inputRange: [0, 50],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
+  const scrollToTop = () => {
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+  };
 
   const handleSearchChange = (text: string) => {
     setSearchTerm(text);
@@ -130,10 +169,13 @@ export default function Products() {
   };
 
   const setQuickFilter = (sourceType: string) => {
-    setFilters(prev => ({
-      ...prev,
-      source_type: prev.source_type === sourceType ? '' : sourceType
-    }));
+    setFilters(prev => {
+      const newSourceType = prev.source_type === sourceType ? '' : sourceType;
+      return {
+        ...prev,
+        source_type: newSourceType
+      };
+    });
   };
 
   const onRefresh = React.useCallback(async () => {
@@ -275,168 +317,187 @@ export default function Products() {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.title}>Products</Text>
-          <Text style={styles.subtitle}>
-            {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} 
-            {activeFiltersCount > 0 && ` (${activeFiltersCount} filter${activeFiltersCount !== 1 ? 's' : ''} applied)`}
-          </Text>
-        </View>
-        <IfMaster>
-          <TouchableOpacity 
-            style={styles.addButton}
-            onPress={() => router.push('/create-product')}
-          >
-            <Plus size={20} color="white" />
-          </TouchableOpacity>
-        </IfMaster>
-      </View>
-
-      <View style={styles.searchContainer}>
-        <CustomSearchBar
-          placeholder="Search products..."
-          value={searchTerm}
-          onChangeText={handleSearchChange}
-          onClear={() => setSearchTerm('')}
-        />
-        <TouchableOpacity 
-          style={[styles.filterButton, activeFiltersCount > 0 && styles.filterButtonActive]}
-          onPress={() => setShowFilters(true)}
-        >
-          <Filter size={20} color={activeFiltersCount > 0 ? "#2563eb" : "#6b7280"} />
-          {activeFiltersCount > 0 && (
-            <View style={styles.filterBadge}>
-              <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Quick Filters */}
-      <View style={styles.quickFiltersContainer}>
-        <Text style={styles.quickFiltersLabel}>Quick Filters:</Text>
-        
-        {/* Category Dropdown */}
-        <View style={styles.quickFilterContainer}>
-          <View style={styles.quickFilterDropdown}>
-            <Picker
-              selectedValue={quickFilters.category}
-              onValueChange={(value) => setQuickFilters(prev => ({ ...prev, category: value }))}
-              style={styles.quickPicker}
-              itemStyle={styles.pickerItem}
-            >
-              {categories.map((category) => (
-                <Picker.Item key={category.value} label={category.label} value={category.value} />
-              ))}
-            </Picker>
-          </View>
-        </View>
-
-        {/* Subcategory Dropdown */}
-        <View style={styles.quickFilterContainer}>
-          <View style={styles.quickFilterDropdown}>
-            <Picker
-              selectedValue={quickFilters.subcategory_id}
-              onValueChange={(value) => setQuickFilters(prev => ({ ...prev, subcategory_id: value }))}
-              style={styles.quickPicker}
-              itemStyle={styles.pickerItem}
-            >
-              <Picker.Item label="All Subcategories" value={0} />
-              {subcategories.map((subcategory) => (
-                <Picker.Item
-                  key={subcategory.id}
-                  label={subcategory.name}
-                  value={subcategory.id}
-                />
-              ))}
-            </Picker>
-          </View>
-        </View>
-
-        {/* Source Type Quick Filters */}
-        <View style={styles.quickFilters}>
-          <TouchableOpacity
-            style={[
-              styles.quickFilterButton,
-              filters.source_type === ProductSourceType.MANUFACTURING && styles.quickFilterButtonActive
-            ]}
-            onPress={() => setQuickFilter('manufacturing')}
-          >
-            <Text style={[
-              styles.quickFilterText,
-              filters.source_type === ProductSourceType.MANUFACTURING && styles.quickFilterTextActive
-            ]}>
-              Manufacturing
+          <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerContent}>
+            <Text style={styles.title}>Products</Text>
+            <Text style={styles.subtitle}>
+              {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} 
+              {activeFiltersCount > 0 && ` (${activeFiltersCount} filter${activeFiltersCount !== 1 ? 's' : ''} applied)`}
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.quickFilterButton,
-              filters.source_type === ProductSourceType.TRADING && styles.quickFilterButtonActive
-            ]}
-            onPress={() => setQuickFilter('trading')}
-          >
-            <Text style={[
-              styles.quickFilterText,
-              filters.source_type === ProductSourceType.TRADING && styles.quickFilterTextActive
-            ]}>
-              Trading
-            </Text>
-          </TouchableOpacity>
-          {activeFiltersCount > 0 && (
-            <TouchableOpacity
-              style={styles.clearFiltersButton}
-              onPress={clearAllFilters}
+          </View>
+          <IfMaster>
+            <TouchableOpacity 
+              style={styles.addButton}
+              onPress={() => router.push('/create-product')}
             >
-              <X size={16} color="#ef4444" />
-              <Text style={styles.clearFiltersText}>Clear All</Text>
+              <Plus size={20} color="white" />
             </TouchableOpacity>
-          )}
-        </View>
-      </View>
+          </IfMaster>
+                </View>
 
-      <FlatList
-        data={filteredProducts}
-        renderItem={renderProduct}
-        keyExtractor={(item) => item.id.toString()}
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Package size={48} color="#d1d5db" />
-            <Text style={styles.emptyText}>
-              {searchTerm || activeFiltersCount > 0 ? 'No products match your search' : 'No products found'}
-            </Text>
-            {(searchTerm || activeFiltersCount > 0) && (
-              <TouchableOpacity 
-                style={styles.clearSearchButton}
-                onPress={() => {
-                  setSearchTerm('');
-                  clearAllFilters();
-                }}
+        <Animated.View 
+          style={[
+            styles.filtersWrapper, 
+            { 
+              transform: [{ translateY: filtersTranslateY }],
+              opacity: filtersOpacity,
+            }
+          ]}
+          onLayout={(event) => {
+            const { height } = event.nativeEvent.layout;
+            if (filtersHeight === 0) {
+              setFiltersHeight(height);
+            }
+          }}
+        >
+          <View style={styles.searchContainer}>
+            <CustomSearchBar
+              placeholder="Search products..."
+              value={searchTerm}
+              onChangeText={handleSearchChange}
+              onClear={() => setSearchTerm('')}
+            />
+            <TouchableOpacity 
+              style={[styles.filterButton, activeFiltersCount > 0 && styles.filterButtonActive]}
+              onPress={() => setShowFilters(true)}
+            >
+              <Filter size={20} color={activeFiltersCount > 0 ? "#2563eb" : "#6b7280"} />
+              {activeFiltersCount > 0 && (
+                <View style={styles.filterBadge}>
+                  <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.quickFiltersContainer}>
+            <Text style={styles.quickFiltersLabel}>Quick Filters:</Text>
+            
+            {/* Category and Subcategory Dropdowns Side by Side */}
+            <View style={styles.dropdownRow}>
+              <View style={styles.dropdownItem}>
+                <View style={styles.quickFilterDropdown}>
+                  <Picker
+                    selectedValue={quickFilters.category}
+                    onValueChange={(value) => setQuickFilters(prev => ({ ...prev, category: value }))}
+                    style={styles.quickPicker}
+                    itemStyle={styles.pickerItem}
+                  >
+                    {categories.map((category) => (
+                      <Picker.Item key={category.value} label={category.label} value={category.value} />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+
+              <View style={styles.dropdownItem}>
+                <View style={styles.quickFilterDropdown}>
+                  <Picker
+                    selectedValue={quickFilters.subcategory_id}
+                    onValueChange={(value) => setQuickFilters(prev => ({ ...prev, subcategory_id: value }))}
+                    style={styles.quickPicker}
+                    itemStyle={styles.pickerItem}
+                  >
+                    <Picker.Item label="All Subcategories" value={0} />
+                    {subcategories.map((subcategory) => (
+                      <Picker.Item
+                        key={subcategory.id}
+                        label={subcategory.name}
+                        value={subcategory.id}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+            </View>
+
+            {/* Source Type Quick Filters */}
+            <View style={styles.quickFilters}>
+              <TouchableOpacity
+                style={[
+                  styles.quickFilterButton,
+                  filters.source_type === ProductSourceType.MANUFACTURING && styles.quickFilterButtonActive
+                ]}
+                onPress={() => setQuickFilter('manufacturing')}
               >
-                <Text style={styles.clearSearchButtonText}>Clear Search & Filters</Text>
+                <Text style={[
+                  styles.quickFilterText,
+                  filters.source_type === ProductSourceType.MANUFACTURING && styles.quickFilterTextActive
+                ]}>
+                  Manufacturing
+                </Text>
               </TouchableOpacity>
-            )}
-            <IfMaster>
-              {!searchTerm && activeFiltersCount === 0 && (
-                <TouchableOpacity 
-                  style={styles.createFirstButton}
-                  onPress={() => router.push('/create-product')}
+              <TouchableOpacity
+                style={[
+                  styles.quickFilterButton,
+                  filters.source_type === ProductSourceType.TRADING && styles.quickFilterButtonActive
+                ]}
+                onPress={() => setQuickFilter('trading')}
+              >
+                <Text style={[
+                  styles.quickFilterText,
+                  filters.source_type === ProductSourceType.TRADING && styles.quickFilterTextActive
+                ]}>
+                  Trading
+                </Text>
+              </TouchableOpacity>
+              {activeFiltersCount > 0 && (
+                <TouchableOpacity
+                  style={styles.clearFiltersButton}
+                  onPress={clearAllFilters}
                 >
-                  <Text style={styles.createFirstButtonText}>Create First Product</Text>
+                  <X size={16} color="#ef4444" />
+                  <Text style={styles.clearFiltersText}>Clear All</Text>
                 </TouchableOpacity>
               )}
-            </IfMaster>
+            </View>
           </View>
-        }
-      />
+        </Animated.View>
+
+        <Animated.FlatList
+          ref={flatListRef}
+          data={filteredProducts}
+          renderItem={renderProduct}
+          keyExtractor={(item) => item.id.toString()}
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          onScroll={handleScroll}
+          scrollEventThrottle={4}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Package size={48} color="#d1d5db" />
+              <Text style={styles.emptyText}>
+                {searchTerm || activeFiltersCount > 0 ? 'No products match your search' : 'No products found'}
+              </Text>
+              {(searchTerm || activeFiltersCount > 0) && (
+                <TouchableOpacity 
+                  style={styles.clearSearchButton}
+                  onPress={() => {
+                    setSearchTerm('');
+                    clearAllFilters();
+                  }}
+                >
+                  <Text style={styles.clearSearchButtonText}>Clear Search & Filters</Text>
+                </TouchableOpacity>
+              )}
+              <IfMaster>
+                {!searchTerm && activeFiltersCount === 0 && (
+                  <TouchableOpacity 
+                    style={styles.createFirstButton}
+                    onPress={() => router.push('/create-product')}
+                  >
+                    <Text style={styles.createFirstButtonText}>Create First Product</Text>
+                  </TouchableOpacity>
+                )}
+              </IfMaster>
+            </View>
+          }
+        />
 
       <ProductFiltersModal
         isVisible={showFilters}
@@ -454,6 +515,17 @@ export default function Products() {
         product={selectedProduct}
         onProductUpdated={handleProductUpdated}
       />
+
+      {/* Scroll to Top Button */}
+      {showScrollToTop && (
+        <TouchableOpacity 
+          style={styles.scrollToTopButton}
+          onPress={scrollToTop}
+          activeOpacity={0.8}
+        >
+          <ChevronUp size={24} color="white" />
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 }
@@ -470,8 +542,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+  },
+  filtersWrapper: {
+    backgroundColor: 'white',
+    transformOrigin: 'top',
+    overflow: 'hidden',
   },
   headerContent: {
     flex: 1,
@@ -500,17 +575,18 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     gap: 12,
     backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
   },
   filterButton: {
     backgroundColor: '#f8fafc',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e5e7eb',
     position: 'relative',
+    minHeight: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   filterButtonActive: {
     backgroundColor: '#dbeafe',
@@ -547,6 +623,15 @@ const styles = StyleSheet.create({
     color: '#374151',
     marginBottom: 8,
   },
+  dropdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 12,
+  },
+  dropdownItem: {
+    flex: 1,
+  },
   quickFilterContainer: {
     marginBottom: 12,
   },
@@ -561,37 +646,41 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#d1d5db',
-    height: 50,
+    height: 60,
     justifyContent: 'center',
   },
   quickPicker: {
-    height: 50,
+    height: 60,
   },
   pickerItem: {
     fontSize: 14,
-    height: 50,
+    height: 60,
   },
   quickFilters: {
     flexDirection: 'row',
     gap: 8,
     flexWrap: 'wrap',
+    alignItems: 'center',
   },
   quickFilterButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#d1d5db',
     backgroundColor: 'white',
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   quickFilterButtonActive: {
     backgroundColor: '#dbeafe',
     borderColor: '#3b82f6',
   },
   quickFilterText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#6b7280',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   quickFilterTextActive: {
     color: '#2563eb',
@@ -601,28 +690,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderRadius: 16,
     backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    minHeight: 40,
+    justifyContent: 'center',
   },
   clearFiltersText: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#ef4444',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   list: {
     flex: 1,
   },
   listContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   productCard: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: '#f1f5f9',
     shadowColor: '#000',
@@ -632,7 +725,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   productHeader: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
   titleRow: {
     flexDirection: 'row',
@@ -640,11 +733,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   productName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#1f2937',
     flex: 1,
-    marginRight: 12,
+    marginRight: 10,
   },
   sourceType: {
     fontSize: 11,
@@ -675,34 +768,34 @@ const styles = StyleSheet.create({
     marginLeft: 2,
   },
   sourceText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#1f2937',
     fontWeight: '600',
-    flexShrink: 0, // Prevent source text from shrinking
-    minWidth: 80, // Ensure minimum width for "Manufacturing"
+    flexShrink: 0,
+    minWidth: 70,
   },
   sourceDetailContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    gap: 4,
+    gap: 3,
     flex: 1,
-    minWidth: 120, // Set minimum width to accommodate "Source: Manufacturing"
+    minWidth: 100,
   },
   sourceLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6b7280',
     fontWeight: '500',
-    flexShrink: 0, // Prevent label from shrinking
+    flexShrink: 0,
   },
   subcategoryText: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#6b7280',
     fontWeight: '500',
   },
   productDetails: {
-    gap: 8,
-    marginBottom: 12,
+    gap: 6,
+    marginBottom: 8,
   },
   detailRow: {
     flexDirection: 'row',
@@ -717,39 +810,38 @@ const styles = StyleSheet.create({
   detailColumn: {
     flex: 1,
     alignItems: 'flex-start',
-    paddingRight: 12, // Increase from 8 to 12 for more spacing
-    minWidth: 0, // Add this
+    paddingRight: 8,
+    minWidth: 0,
   },
   priceText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#1f2937',
-    flexShrink: 1, // Allow price to shrink if needed
+    flexShrink: 1,
   },
   detailColumnPrice: {
     flex: 1,
     alignItems: 'flex-start',
-    paddingRight: 12,
+    paddingRight: 8,
     minWidth: 0,
-    maxWidth: '60%', // Allow price column to take more space when needed
+    maxWidth: '60%',
   },
   
-  // Second column (source) should maintain minimum width:
   detailColumnSource: {
     flex: 0,
     alignItems: 'flex-start',
-    paddingRight: 12,
-    minWidth: 120, // Fixed minimum width for source
+    paddingRight: 8,
+    minWidth: 100,
   },
   
   
   detailLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6b7280',
     fontWeight: '500',
   },
   detailValue: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#1f2937',
   },
@@ -759,7 +851,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: '#f3f4f6',
-    paddingTop: 8,
+    paddingTop: 6,
   },
   footerLeft: {
     alignItems: 'flex-start',
@@ -768,7 +860,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   productLocation: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#6b7280',
   },
   productSubcategory: {
@@ -776,13 +868,13 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
   },
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
     alignItems: 'center',
   },
   statusText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '600',
   },
   emptyContainer: {
@@ -820,5 +912,24 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
     fontWeight: '600',
+  },
+  scrollToTopButton: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#2563eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    // Glossy effect
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
 });

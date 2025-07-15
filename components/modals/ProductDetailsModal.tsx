@@ -369,32 +369,32 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
 
                 {productFormula ? (
                   <>
-                    <View style={styles.formulaInfo}>
-                      <Text style={styles.formulaName}>{productFormula.name}</Text>
-                      {productFormula.description && (
-                        <Text style={styles.formulaDescription}>{productFormula.description}</Text>
-                      )}
-                    </View>
-
-                    {productFormula.components && productFormula.components.length > 0 && (
-                      <View style={styles.componentsSection}>
-                        <Text style={styles.componentsTitle}>Components Required:</Text>
-                        {productFormula.components.map((component: any, index: number) => (
-                          <View key={component?.id || index} style={styles.componentItem}>
-                            <View style={styles.componentDot} />
-                            <Text style={styles.componentName}>{component?.component_name || 'Unknown Component'}</Text>
-                            <Text style={styles.componentQuantity}>{component?.quantity || 0} units</Text>
-                          </View>
-                        ))}
-                      </View>
+                  <View style={styles.formulaInfo}>
+                    <Text style={styles.formulaName}>{productFormula.name}</Text>
+                    {productFormula.description && (
+                      <Text style={styles.formulaDescription}>{productFormula.description}</Text>
                     )}
-                    
-                    <View style={styles.formulaMeta}>
-                      <Text style={styles.formulaMetaText}>
-                        Formula ID: {productFormula.id} • 
-                        Created: {productFormula.created_at ? new Date(productFormula.created_at).toLocaleDateString() : 'Unknown'}
-                      </Text>
+                  </View>
+
+                  {productFormula.components && productFormula.components.length > 0 && (
+                    <View style={styles.componentsSection}>
+                      <Text style={styles.componentsTitle}>Components Required:</Text>
+                      {productFormula.components.map((component: any, index: number) => (
+                        <View key={component?.id || index} style={styles.componentItem}>
+                          <View style={styles.componentDot} />
+                          <Text style={styles.componentName}>{component?.component_name || 'Unknown Component'}</Text>
+                          <Text style={styles.componentQuantity}>{component?.quantity || 0} units</Text>
+                        </View>
+                      ))}
                     </View>
+                  )}
+                  
+                  <View style={styles.formulaMeta}>
+                    <Text style={styles.formulaMetaText}>
+                      Formula ID: {productFormula.id} • 
+                      Created: {productFormula.created_at ? new Date(productFormula.created_at).toLocaleDateString() : 'Unknown'}
+                    </Text>
+                  </View>
                   </>
                 ) : (
                   <View style={styles.noFormulaState}>
@@ -405,8 +405,8 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                         : 'This trading product does not require a formula'
                       }
                     </Text>
-                  </View>
-                )}
+                </View>
+              )}
               </View>
 
               <View style={styles.metaCard}>

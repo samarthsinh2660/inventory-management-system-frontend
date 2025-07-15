@@ -226,7 +226,7 @@ export default function InventoryScreen() {
         <View style={styles.header}>
           <TouchableOpacity onPress={() => setShowEntryForm(false)} style={styles.backButtonContainer}>
             <ChevronLeft size={24} color="#2563eb" />
-          </TouchableOpacity>
+            </TouchableOpacity>
           <Text style={styles.title}>New Inventory Entry</Text>
           <View style={styles.headerRight}>
             {/* Empty view for balanced layout */}
