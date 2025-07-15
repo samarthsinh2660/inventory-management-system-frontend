@@ -10,6 +10,9 @@ import { LoadingSpinner } from '../../components/LoadingSpinner';
 import Toast from 'react-native-toast-message';
 import { UserRole } from '@/types/user';
 import { AuditAction, AuditLog } from '@/types/log';
+// To suppress specific warnings (not recommended for production)
+import { LogBox } from 'react-native';
+LogBox.ignoreLogs(['Text strings must be rendered within a <Text> component']);
 
 export default function AuditLogs() {
   const router = useRouter();
@@ -108,9 +111,9 @@ export default function AuditLogs() {
 
   // Format object values into readable text
   const formatObjectValues = (values: any) => {
-    if (!values) return null;
+    if (!values || typeof values !== 'object') return null;
     
-    const entries = Object.entries(values).map(([key, value]) => {
+    return Object.entries(values).map(([key, value]) => {
       // Skip internal fields for cleaner display
       if (key === 'id' || key === 'created_at' || key === 'updated_at') return null;
       
@@ -125,9 +128,7 @@ export default function AuditLogs() {
           <Text style={styles.valueText}>{formattedValue}</Text>
         </View>
       );
-    }).filter(item => item !== null); // Filter out null values properly
-    
-    return entries.length > 0 ? entries : null;
+    }).filter(Boolean); // Filter out null values
   };
 
   const formatTimestamp = (timestamp: string) => {
@@ -213,23 +214,23 @@ export default function AuditLogs() {
             <Text style={styles.productName} numberOfLines={1} ellipsizeMode="tail">
               {productName || 'Unknown Product'}
             </Text>
-            {quantity ? (
+            {quantity && (
               <Text style={styles.quantityBadge}>
                 {quantity} {item.new_data?.unit || 'units'}
               </Text>
-            ) : null}
+            )}
           </View>
           
           <View style={styles.infoRow}>
-            {item.entry_id ? (
+            {item.entry_id && (
               <Text style={styles.infoText}>Entry #{item.entry_id}</Text>
-            ) : null}
+            )}
             <Text style={styles.usernameText}>By: {item.username}</Text>
-            {item.reason ? (
+            {item.reason && (
               <Text style={styles.reasonText} numberOfLines={1}>
                 Reason: {item.reason}
               </Text>
-            ) : null}
+            )}
           </View>
         </View>
 
@@ -392,7 +393,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     flex: 1,
-    marginLeft: -4, // Reduced further to bring title closer to back button
+    marginLeft: 12,
   },
   title: {
     fontSize: 24,
