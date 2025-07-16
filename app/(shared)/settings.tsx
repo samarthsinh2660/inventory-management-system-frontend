@@ -231,7 +231,7 @@ export default function Settings() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <SettingsIcon size={24} color="#2563eb" />
+          <SettingsIcon size={25} color="#2563eb" />
           <Text style={styles.title}>Settings</Text>
         </View>
       </View>
@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    minHeight: 60,
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
@@ -455,20 +455,20 @@ const styles = StyleSheet.create({
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 0,
     flex: 1,
-    marginLeft: 12,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
-    color: '#1f2937',
+    color: 'black',
+    marginLeft: 12,
   },
   content: {
     flex: 1,
   },
   section: {
-    marginTop: 24,
+    marginTop: 8,
     paddingHorizontal: 20,
   },
   sectionTitle: {

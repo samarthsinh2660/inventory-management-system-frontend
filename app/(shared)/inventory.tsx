@@ -679,19 +679,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   section: {
-    margin: 20,
+    margin: 16,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 0,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
     color: '#1f2937',
-    marginBottom: 16,
+    marginBottom: 8,
   },
   sectionLink: {
     fontSize: 14,
@@ -826,7 +826,7 @@ const styles = StyleSheet.create({
   },
   form: {
     flex: 1,
-    padding: 20,
+    padding: 16,
   },
   pickerContainer: {
     marginBottom: 16,
