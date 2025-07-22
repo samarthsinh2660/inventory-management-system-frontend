@@ -16,7 +16,7 @@ const validationSchema = Yup.object({
   name: Yup.string().required('Name is required'),
   username: Yup.string().required('Username is required').min(3, 'Username must be at least 3 characters'),
   password: Yup.string().required('Password is required').min(6, 'Password must be at least 6 characters'),
-  email: Yup.string().email('Invalid email format'),
+  email: Yup.string().email('Invalid email format').required('Email is required'),  
   role: Yup.string().oneOf(['master', 'employee']).required('Role is required'),
 });
 
@@ -35,7 +35,6 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
       // Ensure email is always a string (empty if not provided)
       const userData = {
         ...values,
-        email: values.email || ''
       };
       
       if (isUserCreation) {
@@ -128,7 +127,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
               )}
 
               <TextInput
-                label="Email (optional)"
+                label="Email"
                 value={values.email}
                 onChangeText={handleChange('email')}
                 onBlur={handleBlur('email')}

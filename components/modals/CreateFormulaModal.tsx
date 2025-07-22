@@ -27,6 +27,27 @@ const validationSchema = Yup.object({
     .min(1, 'At least one component is required'),
 });
 
+// Helper function to get initial values
+const getInitialValues = (editingFormula?: any) => {
+  if (editingFormula) {
+    return {
+      name: editingFormula.name || '',
+      description: editingFormula.description || '',
+      components: editingFormula.components && editingFormula.components.length > 0 
+        ? editingFormula.components.map((comp: any, index: number) => ({
+            component_id: comp.component_id || 0,
+            quantity: comp.quantity || 0,
+          }))
+        : [{ component_id: 0, quantity: 0 }],
+    };
+  }
+  return {
+    name: '',
+    description: '',
+    components: [{ component_id: 0, quantity: 0 }],
+  };
+};
+
 export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
   isVisible,
   onClose,
@@ -42,6 +63,13 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
   const [productFilters, setProductFilters] = useState({
     category: '',
     subcategoryId: 0,
+  });
+
+  // Form values state to prevent resetting when filters change
+  const [formValues, setFormValues] = useState({
+    name: '',
+    description: '',
+    components: [{ component_id: 0, quantity: 0 }],
   });
 
   // Helper function to get filtered subcategories based on selected category
@@ -103,12 +131,27 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
     });
   };
 
+  // Initialize form values when modal opens or editing formula changes
+  useEffect(() => {
+    if (isVisible) {
+      const initialValues = getInitialValues(editingFormula);
+      setFormValues(initialValues);
+    }
+  }, [isVisible, editingFormula]);
+
   // Fetch subcategories when modal opens
   useEffect(() => {
     if (isVisible) {
       dispatch(fetchSubcategories());
     }
   }, [isVisible, dispatch]);
+
+  // Reset filters when modal opens
+  useEffect(() => {
+    if (isVisible) {
+      resetFilters();
+    }
+  }, [isVisible]);
 
   const handleSubmit = async (values: {
     name: string;
@@ -155,25 +198,7 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
     }
   };
 
-  const getInitialValues = () => {
-    if (isEditing && editingFormula) {
-      return {
-        name: editingFormula.name || '',
-        description: editingFormula.description || '',
-        components: editingFormula.components && editingFormula.components.length > 0 
-          ? editingFormula.components.map((comp, index: number) => ({
-              component_id: comp.component_id || 0,
-              quantity: comp.quantity || 0,
-            }))
-          : [{ component_id: 0, quantity: 0 }],
-      };
-    }
-    return {
-      name: '',
-      description: '',
-      components: [{ component_id: 0, quantity: 0 }],
-    };
-  };
+
 
   return (
     <Modal isVisible={isVisible} onBackdropPress={onClose}>
@@ -188,10 +213,10 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
         </View>
 
         <Formik
-          initialValues={getInitialValues()}
+          initialValues={formValues}
           validationSchema={validationSchema}
           onSubmit={handleSubmit}
-          enableReinitialize={true}
+          enableReinitialize={false}
         >
           {({ values, errors, touched, handleChange, handleBlur, handleSubmit, isSubmitting, setFieldValue }) => (
             <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
@@ -299,6 +324,19 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
                                   value={product.id}
                                 />
                               ))}
+                              {/* Show selected product even if it's not in filtered list */}
+                              {component.component_id > 0 && !filteredProducts.find(p => p.id === component.component_id) && (
+                                (() => {
+                                  const selectedProduct = products.find(p => p.id === component.component_id);
+                                  return selectedProduct ? (
+                                    <Picker.Item
+                                      key={selectedProduct.id}
+                                      label={`${selectedProduct.name} (${selectedProduct.unit}) - Selected`}
+                                      value={selectedProduct.id}
+                                    />
+                                  ) : null;
+                                })()
+                              )}
                             </Picker>
                           </View>
                           {touched.components && 
