@@ -200,7 +200,7 @@ export default function Dashboard() {
               />
               <StatCard
                 title="Inventory Value"
-                value={`$${totalValue.toLocaleString()}`}
+                value={`₹${totalValue.toLocaleString()}`}
                 subtitle="Total stock value"
                 icon={<BarChart3 size={24} color="#10b981" />}
                 color="#10b981"

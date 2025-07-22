@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import Modal from 'react-native-modal';
 import { Formik, FieldArray } from 'formik';
@@ -9,8 +9,9 @@ import { Picker } from '@react-native-picker/picker';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { createFormula, updateFormula} from '../../store/slices/formulasSlice';
+import { fetchSubcategories } from '../../store/slices/subcategoriesSlice';
 import Toast from 'react-native-toast-message';
-import { CreateFormulaData } from '@/types/product';
+import { CreateFormulaData, ProductCategory } from '@/types/product';
 import { CreateFormulaModalProps } from '@/types/general';
 
 const validationSchema = Yup.object({
@@ -34,7 +35,80 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
 }) => {
   const dispatch = useAppDispatch();
   const products = useAppSelector(state => state.products.list);
+  const subcategories = useAppSelector(state => state.subcategories.list);
   const isEditing = !!editingFormula;
+
+  // Product filter states
+  const [productFilters, setProductFilters] = useState({
+    category: '',
+    subcategoryId: 0,
+  });
+
+  // Helper function to get filtered subcategories based on selected category
+  const getFilteredSubcategories = (selectedCategory: string) => {
+    if (!selectedCategory) {
+      return subcategories; // Return all subcategories if no category is selected
+    }
+    
+    // Get unique subcategory IDs that are used by products in the selected category
+    const categoryProductSubcategoryIds = new Set(
+      products
+        .filter(product => product.category === selectedCategory)
+        .map(product => product.subcategory_id)
+    );
+    
+    // Return only subcategories that are actually used by products in this category
+    return subcategories.filter(subcategory => 
+      categoryProductSubcategoryIds.has(subcategory.id)
+    );
+  };
+
+  // Filter products based on selected filters
+  const filteredProducts = products.filter(product => {
+    // Filter by category
+    if (productFilters.category && product.category !== productFilters.category) {
+      return false;
+    }
+    
+    // Filter by subcategory - convert to number for comparison
+    if (productFilters.subcategoryId > 0 && product.subcategory_id !== Number(productFilters.subcategoryId)) {
+      return false;
+    }
+    
+    return true;
+  });
+
+  // Handle filter changes
+  const handleCategoryChange = (value: string) => {
+    setProductFilters(prev => ({
+      ...prev,
+      category: value,
+      // Reset subcategory when category changes to ensure compatibility
+      subcategoryId: 0,
+    }));
+  };
+
+  const handleSubcategoryChange = (value: number) => {
+    setProductFilters(prev => ({
+      ...prev,
+      subcategoryId: Number(value),
+    }));
+  };
+
+  // Reset all filters
+  const resetFilters = () => {
+    setProductFilters({
+      category: '',
+      subcategoryId: 0,
+    });
+  };
+
+  // Fetch subcategories when modal opens
+  useEffect(() => {
+    if (isVisible) {
+      dispatch(fetchSubcategories());
+    }
+  }, [isVisible, dispatch]);
 
   const handleSubmit = async (values: {
     name: string;
@@ -143,6 +217,64 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
                 style={styles.input}
               />
 
+              {/* Product Filters Section */}
+              <View style={styles.filtersSection}>
+                <View style={styles.filtersSectionHeader}>
+                  <Text style={styles.filtersSectionTitle}>Product Filters</Text>
+                  <TouchableOpacity onPress={resetFilters} style={styles.resetFiltersButton}>
+                    <Text style={styles.resetFiltersText}>Reset</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                {/* Category Filter */}
+                <View style={styles.pickerContainer}>
+                  <Text style={styles.label}>Category</Text>
+                  <View style={styles.picker}>
+                    <Picker
+                      selectedValue={productFilters.category}
+                      onValueChange={handleCategoryChange}
+                    >
+                      <Picker.Item label="All Categories" value="" />
+                      <Picker.Item label="Raw Materials" value={ProductCategory.RAW} />
+                      <Picker.Item label="Semi-Finished" value={ProductCategory.SEMI} />
+                      <Picker.Item label="Finished Products" value={ProductCategory.FINISHED} />
+                    </Picker>
+                  </View>
+                </View>
+
+                {/* Subcategory Filter */}
+                <View style={styles.pickerContainer}>
+                  <Text style={styles.label}>Subcategory</Text>
+                  <View style={styles.picker}>
+                    <Picker
+                      selectedValue={productFilters.subcategoryId}
+                      onValueChange={handleSubcategoryChange}
+                      key={`subcategory-${productFilters.category}`} // Force re-render when category changes
+                    >
+                      <Picker.Item label="All Subcategories" value={0} />
+                      {getFilteredSubcategories(productFilters.category).length > 0 ? (
+                        getFilteredSubcategories(productFilters.category).map(subcategory => (
+                          <Picker.Item 
+                            key={subcategory.id} 
+                            label={subcategory.name || 'Unknown Subcategory'} 
+                            value={subcategory.id} 
+                          />
+                        ))
+                      ) : (
+                        <Picker.Item label="No subcategories available" value={0} />
+                      )}
+                    </Picker>
+                  </View>
+                </View>
+
+                {/* Filter Results Info */}
+                <View style={styles.filterResultsInfo}>
+                  <Text style={styles.filterResultsText}>
+                    Showing {filteredProducts.length} of {products.length} products
+                  </Text>
+                </View>
+              </View>
+
               <Text style={styles.sectionTitle}>Components</Text>
 
               <FieldArray name="components">
@@ -160,7 +292,7 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
                               }
                             >
                               <Picker.Item label="Select Product" value={0} />
-                              {products.map((product) => (
+                              {filteredProducts.map((product) => (
                                 <Picker.Item
                                   key={product.id}
                                   label={`${product.name} (${product.unit})`}
@@ -343,5 +475,49 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
+  },
+  filtersSection: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  filtersSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  filtersSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  resetFiltersButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#2563eb',
+    borderRadius: 6,
+  },
+  resetFiltersText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#ffffff',
+  },
+  filterResultsInfo: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  filterResultsText: {
+    fontSize: 14,
+    color: '#2563eb',
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

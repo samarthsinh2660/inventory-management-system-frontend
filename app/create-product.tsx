@@ -27,7 +27,7 @@ const validationSchema = Yup.object({
   subcategory_id: Yup.number().min(1, 'Subcategory is required').required('Subcategory is required'),
   location_id: Yup.number().min(1, 'Location is required').required('Location is required'),
   min_stock_threshold: Yup.number().min(0, 'Threshold must be positive'),
-  formula_id: Yup.number(),
+  product_formula_id: Yup.number(),
 });
 
 export default function CreateProduct() {
@@ -54,7 +54,7 @@ export default function CreateProduct() {
         price: parseFloat(values.cost), // Map cost to price for the API
         cost: undefined, // Remove cost as it's not needed by API
         min_stock_threshold: values.min_stock_threshold ? parseFloat(values.min_stock_threshold) : undefined,
-        formula_id: values.formula_id || undefined,
+        product_formula_id: values.product_formula_id || undefined,
       };
       
       await dispatch(createProduct(productData)).unwrap();
@@ -99,7 +99,7 @@ export default function CreateProduct() {
           subcategory_id: 0,
           location_id: 0,
           min_stock_threshold: '',
-          formula_id: 0,
+          product_formula_id: 0,
         }}
         validationSchema={validationSchema}
         onSubmit={handleSubmit}
@@ -297,10 +297,10 @@ export default function CreateProduct() {
                 <View style={styles.dropdownWithAdd}>
                   <View style={[styles.pickerContainer, { flex: 1 }]}>
                     <Text style={styles.label}>Formula</Text>
-                    <View style={[styles.picker, values.formula_id > 0 && styles.selectedPicker]}>
+                    <View style={[styles.picker, values.product_formula_id > 0 && styles.selectedPicker]}>
                       <Picker
-                        selectedValue={values.formula_id}
-                        onValueChange={(value) => setFieldValue('formula_id', value)}
+                        selectedValue={values.product_formula_id}
+                        onValueChange={(value) => setFieldValue('product_formula_id', value)}
                       >
                         <Picker.Item label="No Formula" value={0} />
                         {formulas.map((formula) => (
@@ -312,11 +312,11 @@ export default function CreateProduct() {
                         ))}
                       </Picker>
                     </View>
-                    {values.formula_id > 0 ? (
+                    {values.product_formula_id > 0 ? (
                       <View style={styles.selectionIndicator}>
                         <Check size={16} color="#10b981" />
                         <Text style={styles.selectedStatus}>
-                          {getSelectedItemName(formulas, values.formula_id)} selected
+                          {getSelectedItemName(formulas, values.product_formula_id)} selected
                         </Text>
                       </View>
                     ) : (

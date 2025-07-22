@@ -55,6 +55,8 @@ export function ProductFiltersModal({
   ];
   const sourceTypes = ['manufacturing', 'trading'];
 
+
+
   return (
     <Modal
       visible={isVisible}
@@ -87,7 +89,12 @@ export function ProductFiltersModal({
               <Picker
                 selectedValue={tempFilters.category}
                 onValueChange={(value: string) =>
-                  setTempFilters((prev: ProductFiltersState) => ({ ...prev, category: value }))
+                  setTempFilters((prev: ProductFiltersState) => ({ 
+                    ...prev, 
+                    category: value,
+                    // Reset subcategory when category changes
+                    subcategory_id: 0
+                  }))
                 }
                 style={styles.picker}
               >
@@ -106,7 +113,7 @@ export function ProductFiltersModal({
               <Picker
                 selectedValue={tempFilters.subcategory_id}
                 onValueChange={(value: number) =>
-                  setTempFilters((prev: ProductFiltersState) => ({ ...prev, subcategory_id: value }))
+                  setTempFilters((prev: ProductFiltersState) => ({ ...prev, subcategory_id: Number(value) }))
                 }
                 style={styles.picker}
               >
@@ -129,7 +136,7 @@ export function ProductFiltersModal({
               <Picker
                 selectedValue={tempFilters.location_id}
                 onValueChange={(value: number) =>
-                  setTempFilters((prev: ProductFiltersState) => ({ ...prev, location_id: value }))
+                  setTempFilters((prev: ProductFiltersState) => ({ ...prev, location_id: Number(value) }))
                 }
                 style={styles.picker}
               >
@@ -175,7 +182,7 @@ export function ProductFiltersModal({
               <Picker
                 selectedValue={tempFilters.formula_id}
                 onValueChange={(value: number) =>
-                  setTempFilters((prev: ProductFiltersState) => ({ ...prev, formula_id: value }))
+                  setTempFilters((prev: ProductFiltersState) => ({ ...prev, formula_id: Number(value) }))
                 }
                 style={styles.picker}
               >

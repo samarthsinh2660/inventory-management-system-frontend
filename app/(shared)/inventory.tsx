@@ -132,6 +132,8 @@ export default function InventoryScreen() {
     }
   }, [selectedProductId, dispatch]);
 
+
+
   const loadEntries = () => {
     const params = { page: currentPage, limit: itemsPerPage };
     
@@ -150,6 +152,25 @@ export default function InventoryScreen() {
     setCurrentPage(1); // Reset to first page when changing views
   };
 
+  // Helper function to get filtered subcategories based on selected category
+  const getFilteredSubcategories = (selectedCategory: string) => {
+    if (!selectedCategory) {
+      return subcategories; // Return all subcategories if no category is selected
+    }
+    
+    // Get unique subcategory IDs that are used by products in the selected category
+    const categoryProductSubcategoryIds = new Set(
+      products
+        .filter(product => product.category === selectedCategory)
+        .map(product => product.subcategory_id)
+    );
+    
+    // Return only subcategories that are actually used by products in this category
+    return subcategories.filter(subcategory => 
+      categoryProductSubcategoryIds.has(subcategory.id)
+    );
+  };
+
   // Filter products based on selected filters
   const filteredProducts = products.filter(product => {
     // Filter by source type
@@ -162,8 +183,8 @@ export default function InventoryScreen() {
       return false;
     }
     
-    // Filter by subcategory
-    if (productFilters.subcategoryId > 0 && product.subcategory_id !== productFilters.subcategoryId) {
+    // Filter by subcategory - convert to number for comparison
+    if (productFilters.subcategoryId > 0 && product.subcategory_id !== Number(productFilters.subcategoryId)) {
       return false;
     }
     
@@ -184,7 +205,7 @@ export default function InventoryScreen() {
     setProductFilters(prev => ({
       ...prev,
       category: value,
-      // Reset subcategory when category changes as they might not be compatible
+      // Reset subcategory when category changes to ensure compatibility
       subcategoryId: 0,
     }));
     setSelectedProductId(0);
@@ -193,7 +214,7 @@ export default function InventoryScreen() {
   const handleSubcategoryChange = (value: number) => {
     setProductFilters(prev => ({
       ...prev,
-      subcategoryId: value,
+      subcategoryId: Number(value),
     }));
     setSelectedProductId(0);
   };
@@ -365,15 +386,20 @@ export default function InventoryScreen() {
                       <Picker
                         selectedValue={productFilters.subcategoryId}
                         onValueChange={handleSubcategoryChange}
+                        key={`subcategory-${productFilters.category}`} // Force re-render when category changes
                       >
                         <Picker.Item label="All Subcategories" value={0} />
-                        {subcategories.map(subcategory => (
-                          <Picker.Item 
-                            key={subcategory.id} 
-                            label={subcategory.name || 'Unknown Subcategory'} 
-                            value={subcategory.id} 
-                          />
-                        ))}
+                        {getFilteredSubcategories(productFilters.category).length > 0 ? (
+                          getFilteredSubcategories(productFilters.category).map(subcategory => (
+                            <Picker.Item 
+                              key={subcategory.id} 
+                              label={subcategory.name || 'Unknown Subcategory'} 
+                              value={subcategory.id} 
+                            />
+                          ))
+                        ) : (
+                          <Picker.Item label="No subcategories available" value={0} />
+                        )}
                       </Picker>
                     </View>
                   </View>
@@ -941,13 +967,13 @@ const styles = StyleSheet.create({
   resetFiltersButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: '#2563eb',
     borderRadius: 6,
   },
   resetFiltersText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#6b7280',
+    color: '#ffffff',
   },
   filterResultsInfo: {
     backgroundColor: 'white',

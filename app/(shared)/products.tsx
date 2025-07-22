@@ -79,6 +79,25 @@ export default function Products() {
     return balance?.total_price || 0;
   };
 
+  // Helper function to get filtered subcategories based on selected category
+  const getFilteredSubcategories = (selectedCategory: string) => {
+    if (!selectedCategory) {
+      return subcategories; // Return all subcategories if no category is selected
+    }
+    
+    // Get unique subcategory IDs that are used by products in the selected category
+    const categoryProductSubcategoryIds = new Set(
+      products
+        .filter(product => product.category === selectedCategory)
+        .map(product => product.subcategory_id)
+    );
+    
+    // Return only subcategories that are actually used by products in this category
+    return subcategories.filter(subcategory => 
+      categoryProductSubcategoryIds.has(subcategory.id)
+    );
+  };
+
   const applyFilters = (product: Product) => {
     // Search term filter
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -95,20 +114,22 @@ export default function Products() {
       formula_id: filters.formula_id,
     };
 
+
+
     // Category filter
     if (allFilters.category && product.category !== allFilters.category) return false;
     
-    // Subcategory filter
-    if (allFilters.subcategory_id && product.subcategory_id !== allFilters.subcategory_id) return false;
+    // Subcategory filter - convert to number for comparison
+    if (allFilters.subcategory_id && product.subcategory_id !== Number(allFilters.subcategory_id)) return false;
     
-    // Location filter
-    if (allFilters.location_id && product.location_id !== allFilters.location_id) return false;
+    // Location filter - convert to number for comparison
+    if (allFilters.location_id && product.location_id !== Number(allFilters.location_id)) return false;
     
     // Source type filter
     if (allFilters.source_type && product.source_type !== allFilters.source_type) return false;
     
-    // Formula filter
-    if (allFilters.formula_id && product.product_formula_id !== allFilters.formula_id) return false;
+    // Formula filter - convert to number for comparison
+    if (allFilters.formula_id && product.product_formula_id !== Number(allFilters.formula_id)) return false;
 
     return true;
   };
@@ -303,7 +324,12 @@ export default function Products() {
             <View style={styles.quickFilterDropdownFullWidth}>
               <Picker
                 selectedValue={quickFilters.category}
-                onValueChange={(value) => setQuickFilters(prev => ({ ...prev, category: value }))}
+                onValueChange={(value) => setQuickFilters(prev => ({ 
+                  ...prev, 
+                  category: value,
+                  // Reset subcategory when category changes
+                  subcategory_id: 0
+                }))}
                 style={styles.quickPickerFullWidth}
                 itemStyle={styles.pickerItemFullWidth}
               >
@@ -319,12 +345,12 @@ export default function Products() {
             <View style={styles.quickFilterDropdownFullWidth}>
               <Picker
                 selectedValue={quickFilters.subcategory_id}
-                onValueChange={(value) => setQuickFilters(prev => ({ ...prev, subcategory_id: value }))}
+                onValueChange={(value) => setQuickFilters(prev => ({ ...prev, subcategory_id: Number(value) }))}
                 style={styles.quickPickerFullWidth}
                 itemStyle={styles.pickerItemFullWidth}
               >
                 <Picker.Item label="All Subcategories" value={0} />
-                {subcategories.map((subcategory) => (
+                {getFilteredSubcategories(quickFilters.category || filters.category).map((subcategory) => (
                   <Picker.Item
                     key={subcategory.id}
                     label={subcategory.name}
@@ -473,7 +499,7 @@ export default function Products() {
         onClose={() => setShowFilters(false)}
         filters={filters}
         onApplyFilters={setFilters}
-        subcategories={subcategories}
+        subcategories={getFilteredSubcategories(filters.category)}
         locations={locations}
         formulas={formulas}
       />
