@@ -340,74 +340,82 @@ export default function InventoryScreen() {
             {({ handleChange, handleSubmit, values, errors, touched, setFieldValue }) => (
               <View>
                 {/* Product Filters Section */}
+                {/* Compact Product Filters Section */}
                 <View style={styles.filtersSection}>
                   <View style={styles.filtersSectionHeader}>
                     <Text style={styles.filtersSectionTitle}>Product Filters</Text>
-                    <TouchableOpacity onPress={resetFilters} style={styles.resetFiltersButton}>
-                      <Text style={styles.resetFiltersText}>Reset</Text>
-                    </TouchableOpacity>
+                    <View style={styles.filterActions}>
+                      <TouchableOpacity onPress={resetFilters} style={styles.resetFiltersButton}>
+                        <Text style={styles.resetFiltersText}>Reset</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.addFilterButton}>
+                        <Plus size={16} color="#6b7280" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                   
-                  {/* Source Type Filter */}
-                  <View style={styles.pickerContainer}>
-                    <Text style={styles.label}>Source Type</Text>
-                    <View style={styles.picker}>
-                      <Picker
-                        selectedValue={productFilters.sourceType}
-                        onValueChange={handleSourceTypeChange}
-                      >
-                        <Picker.Item label="All Source Types" value="" />
-                        <Picker.Item label="Manufacturing" value={ProductSourceType.MANUFACTURING} />
-                        <Picker.Item label="Trading" value={ProductSourceType.TRADING} />
-                      </Picker>
+                  {/* Side-by-side filters */}
+                  <View style={styles.filtersRow}>
+                    <View style={styles.filterColumn}>
+                      <Text style={styles.label}>Source Type</Text>
+                      <View style={styles.picker}>
+                        <Picker
+                          selectedValue={productFilters.sourceType}
+                          onValueChange={handleSourceTypeChange}
+                        >
+                          <Picker.Item label="All Source Types" value="" />
+                          <Picker.Item label="Manufacturing" value={ProductSourceType.MANUFACTURING} />
+                          <Picker.Item label="Trading" value={ProductSourceType.TRADING} />
+                        </Picker>
+                      </View>
+                    </View>
+
+                    <View style={styles.filterColumn}>
+                      <Text style={styles.label}>Category</Text>
+                      <View style={styles.picker}>
+                        <Picker
+                          selectedValue={productFilters.category}
+                          onValueChange={handleCategoryChange}
+                        >
+                          <Picker.Item label="All Categories" value="" />
+                          <Picker.Item label="Raw Materials" value={ProductCategory.RAW} />
+                          <Picker.Item label="Semi-Finished" value={ProductCategory.SEMI} />
+                          <Picker.Item label="Finished Products" value={ProductCategory.FINISHED} />
+                        </Picker>
+                      </View>
                     </View>
                   </View>
 
-                  {/* Category Filter */}
-                  <View style={styles.pickerContainer}>
-                    <Text style={styles.label}>Category</Text>
-                    <View style={styles.picker}>
-                      <Picker
-                        selectedValue={productFilters.category}
-                        onValueChange={handleCategoryChange}
-                      >
-                        <Picker.Item label="All Categories" value="" />
-                        <Picker.Item label="Raw Materials" value={ProductCategory.RAW} />
-                        <Picker.Item label="Semi-Finished" value={ProductCategory.SEMI} />
-                        <Picker.Item label="Finished Products" value={ProductCategory.FINISHED} />
-                      </Picker>
+                  <View style={styles.filtersRow}>
+                    <View style={styles.filterColumn}>
+                      <Text style={styles.label}>Subcategory</Text>
+                      <View style={styles.picker}>
+                        <Picker
+                          selectedValue={productFilters.subcategoryId}
+                          onValueChange={handleSubcategoryChange}
+                          key={`subcategory-${productFilters.category}`}
+                        >
+                          <Picker.Item label="All Subcategories" value={0} />
+                          {getFilteredSubcategories(productFilters.category).length > 0 ? (
+                            getFilteredSubcategories(productFilters.category).map(subcategory => (
+                              <Picker.Item 
+                                key={subcategory.id} 
+                                label={subcategory.name || 'Unknown Subcategory'} 
+                                value={subcategory.id} 
+                              />
+                            ))
+                          ) : (
+                            <Picker.Item label="No subcategories available" value={0} />
+                          )}
+                        </Picker>
+                      </View>
                     </View>
                   </View>
-
-                  {/* Subcategory Filter */}
-                  <View style={styles.pickerContainer}>
-                    <Text style={styles.label}>Subcategory</Text>
-                    <View style={styles.picker}>
-                      <Picker
-                        selectedValue={productFilters.subcategoryId}
-                        onValueChange={handleSubcategoryChange}
-                        key={`subcategory-${productFilters.category}`} // Force re-render when category changes
-                      >
-                        <Picker.Item label="All Subcategories" value={0} />
-                        {getFilteredSubcategories(productFilters.category).length > 0 ? (
-                          getFilteredSubcategories(productFilters.category).map(subcategory => (
-                            <Picker.Item 
-                              key={subcategory.id} 
-                              label={subcategory.name || 'Unknown Subcategory'} 
-                              value={subcategory.id} 
-                            />
-                          ))
-                        ) : (
-                          <Picker.Item label="No subcategories available" value={0} />
-                        )}
-                      </Picker>
-                    </View>
-                  </View>
-
-                  {/* Filter Results Info */}
-                  <View style={styles.filterResultsInfo}>
-                    <Text style={styles.filterResultsText}>
-                      Showing {filteredProducts.length} of {products.length} products
+                  
+                  {/* Compact product count indicator */}
+                  <View style={styles.productCountIndicator}>
+                    <Text style={styles.productCountText}>
+                      {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
                     </Text>
                   </View>
                 </View>
@@ -988,5 +996,40 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontWeight: '500',
     textAlign: 'center',
+  },
+  filterActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  addFilterButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  filtersRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  filterColumn: {
+    flex: 1,
+  },
+  productCountIndicator: {
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  productCountText: {
+    fontSize: 11,
+    color: '#0369a1',
+    fontWeight: '500',
   },
 });

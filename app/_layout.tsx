@@ -58,6 +58,7 @@ function AppContent() {
         <Stack.Screen name="audit/audit" options={{ headerShown: false }} />
         <Stack.Screen name="(shared)/settings" options={{ headerShown: false }} />
         <Stack.Screen name="create-product" options={{ headerShown: false }} />
+        <Stack.Screen name="subcategories" options={{ headerShown: false }} />
         <Stack.Screen name="demo-info" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
       </Stack>

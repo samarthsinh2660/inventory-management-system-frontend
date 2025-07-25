@@ -378,6 +378,13 @@ export default function CreateProduct() {
         onSuccess={(formula) => {
           // Refresh formulas list
           dispatch(fetchFormulas());
+          
+          // Show success message for formula creation
+          Toast.show({
+            type: 'success',
+            text1: 'Success',
+            text2: 'Formula created successfully',
+          });
         }}
       />
     </SafeAreaView>

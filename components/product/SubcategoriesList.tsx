@@ -4,7 +4,7 @@ import { Tag, Edit2, Trash2, Plus } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { deleteSubcategory } from '../../store/slices/subcategoriesSlice';
-import { IfMaster } from '../../components/IfMaster';
+import { IfMaster } from '../IfMaster';
 import { Subcategory, SubcategoriesListProps, SubcategoryDisplayItem, SubcategoryRenderItem } from '@/types/product';
 
 

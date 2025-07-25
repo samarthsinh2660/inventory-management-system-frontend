@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Package, TrendingUp, TriangleAlert as AlertTriangle, Activity, ChartBar as BarChart3, Bell, Target, Zap, Users } from 'lucide-react-native';
+import { Package, TrendingUp, TriangleAlert as AlertTriangle, Activity, ChartBar as BarChart3, Bell, Target, Zap, Users, Tag } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
@@ -310,6 +310,13 @@ export default function Dashboard() {
               >
                 <TrendingUp size={24} color="#f59e0b" />
                 <Text style={styles.quickActionText}>Add Product</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.quickActionCard}
+                onPress={() => router.push('../subcategories')}
+              >
+                <Tag size={24} color="#8b5cf6" />
+                <Text style={styles.quickActionText}>Manage Subcategories</Text>
               </TouchableOpacity>
             </IfMaster>
           </View>

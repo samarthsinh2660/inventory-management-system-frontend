@@ -4,7 +4,7 @@ import Modal from 'react-native-modal';
 import { Formik, FieldArray } from 'formik';
 import * as Yup from 'yup';
 import { TextInput, Button } from 'react-native-paper';
-import { X, Plus, Minus } from 'lucide-react-native';
+import { X, Plus, Minus, Trash2 } from 'lucide-react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
@@ -72,6 +72,9 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
     components: [{ component_id: 0, quantity: 0 }],
   });
 
+  // Custom dropdown visibility state
+  const [dropdownVisible, setDropdownVisible] = useState<{[key: number]: boolean}>({});
+
   // Helper function to get filtered subcategories based on selected category
   const getFilteredSubcategories = (selectedCategory: string) => {
     if (!selectedCategory) {
@@ -137,7 +140,7 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
       const initialValues = getInitialValues(editingFormula);
       setFormValues(initialValues);
     }
-  }, [isVisible, editingFormula]);
+  }, [isVisible, editingFormula, isEditing]);
 
   // Fetch subcategories when modal opens
   useEffect(() => {
@@ -152,6 +155,8 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
       resetFilters();
     }
   }, [isVisible]);
+
+
 
   const handleSubmit = async (values: {
     name: string;
@@ -174,22 +179,15 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
           id: editingFormula.id,
           data: formulaData
         })).unwrap();
-        Toast.show({
-          type: 'success',
-          text1: 'Success',
-          text2: 'Formula updated successfully',
-        });
       } else {
         result = await dispatch(createFormula(formulaData)).unwrap();
-      Toast.show({
-        type: 'success',
-        text1: 'Success',
-        text2: 'Formula created successfully',
-      });
       }
-      onSuccess?.(result.data);
+      if (onSuccess) {
+        await onSuccess(result.data);
+      }
       onClose();
     } catch (error: any) {
+      console.error('CreateFormulaModal error:', error);
       Toast.show({
         type: 'error',
         text1: 'Error',
@@ -213,132 +211,153 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
         </View>
 
         <Formik
+          key={editingFormula?.id || 'new-formula'}
           initialValues={formValues}
           validationSchema={validationSchema}
           onSubmit={handleSubmit}
-          enableReinitialize={false}
+          enableReinitialize={true}
         >
           {({ values, errors, touched, handleChange, handleBlur, handleSubmit, isSubmitting, setFieldValue }) => (
             <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
-              <TextInput
-                label="Formula Name*"
-                value={values.name}
-                onChangeText={handleChange('name')}
-                onBlur={handleBlur('name')}
-                error={touched.name && !!errors.name}
-                style={styles.input}
-              />
-              {touched.name && errors.name && (
-                <Text style={styles.errorText}>{String(errors.name)}</Text>
-              )}
+              {/* Basic Info Section */}
+              <View style={styles.basicInfoSection}>
+                <TextInput
+                  label="Name"
+                  value={values.name}
+                  onChangeText={handleChange('name')}
+                  onBlur={handleBlur('name')}
+                  error={touched.name && !!errors.name}
+                  style={styles.input}
+                />
+                {touched.name && errors.name && (
+                  <Text style={styles.errorText}>{String(errors.name)}</Text>
+                )}
 
-              <TextInput
-                label="Description"
-                value={values.description}
-                onChangeText={handleChange('description')}
-                onBlur={handleBlur('description')}
-                multiline
-                numberOfLines={2}
-                style={styles.input}
-              />
+                <TextInput
+                  label="Description"
+                  value={values.description}
+                  onChangeText={handleChange('description')}
+                  onBlur={handleBlur('description')}
+                  multiline
+                  numberOfLines={2}
+                  style={styles.input}
+                />
+              </View>
 
-              {/* Product Filters Section */}
+              {/* Compact Product Filters Section */}
               <View style={styles.filtersSection}>
                 <View style={styles.filtersSectionHeader}>
                   <Text style={styles.filtersSectionTitle}>Product Filters</Text>
-                  <TouchableOpacity onPress={resetFilters} style={styles.resetFiltersButton}>
-                    <Text style={styles.resetFiltersText}>Reset</Text>
-                  </TouchableOpacity>
+                  <View style={styles.filterActions}>
+                    <TouchableOpacity onPress={resetFilters} style={styles.resetFiltersButton}>
+                      <Text style={styles.resetFiltersText}>Reset</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.addFilterButton}>
+                      <Plus size={16} color="#6b7280" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 
-                {/* Category Filter */}
-                <View style={styles.pickerContainer}>
-                  <Text style={styles.label}>Category</Text>
-                  <View style={styles.picker}>
-                    <Picker
-                      selectedValue={productFilters.category}
-                      onValueChange={handleCategoryChange}
-                    >
-                      <Picker.Item label="All Categories" value="" />
-                      <Picker.Item label="Raw Materials" value={ProductCategory.RAW} />
-                      <Picker.Item label="Semi-Finished" value={ProductCategory.SEMI} />
-                      <Picker.Item label="Finished Products" value={ProductCategory.FINISHED} />
-                    </Picker>
+                {/* Side-by-side filters */}
+                <View style={styles.filtersRow}>
+                  <View style={styles.filterColumn}>
+                    <Text style={styles.label}>Category</Text>
+                    <View style={styles.picker}>
+                      <Picker
+                        selectedValue={productFilters.category}
+                        onValueChange={handleCategoryChange}
+                      >
+                        <Picker.Item label="All Categories" value="" />
+                        <Picker.Item label="Raw Materials" value={ProductCategory.RAW} />
+                        <Picker.Item label="Semi-Finished" value={ProductCategory.SEMI} />
+                        <Picker.Item label="Finished Products" value={ProductCategory.FINISHED} />
+                      </Picker>
+                    </View>
+                  </View>
+
+                  <View style={styles.filterColumn}>
+                    <Text style={styles.label}>Subcategory</Text>
+                    <View style={styles.picker}>
+                      <Picker
+                        selectedValue={productFilters.subcategoryId}
+                        onValueChange={handleSubcategoryChange}
+                        key={`subcategory-${productFilters.category}`}
+                      >
+                        <Picker.Item label="All Subcategories" value={0} />
+                        {getFilteredSubcategories(productFilters.category).length > 0 ? (
+                          getFilteredSubcategories(productFilters.category).map(subcategory => (
+                            <Picker.Item 
+                              key={subcategory.id} 
+                              label={subcategory.name || 'Unknown Subcategory'} 
+                              value={subcategory.id} 
+                            />
+                          ))
+                        ) : (
+                          <Picker.Item label="No subcategories available" value={0} />
+                        )}
+                      </Picker>
+                    </View>
                   </View>
                 </View>
-
-                {/* Subcategory Filter */}
-                <View style={styles.pickerContainer}>
-                  <Text style={styles.label}>Subcategory</Text>
-                  <View style={styles.picker}>
-                    <Picker
-                      selectedValue={productFilters.subcategoryId}
-                      onValueChange={handleSubcategoryChange}
-                      key={`subcategory-${productFilters.category}`} // Force re-render when category changes
-                    >
-                      <Picker.Item label="All Subcategories" value={0} />
-                      {getFilteredSubcategories(productFilters.category).length > 0 ? (
-                        getFilteredSubcategories(productFilters.category).map(subcategory => (
-                          <Picker.Item 
-                            key={subcategory.id} 
-                            label={subcategory.name || 'Unknown Subcategory'} 
-                            value={subcategory.id} 
-                          />
-                        ))
-                      ) : (
-                        <Picker.Item label="No subcategories available" value={0} />
-                      )}
-                    </Picker>
-                  </View>
-                </View>
-
-                {/* Filter Results Info */}
-                <View style={styles.filterResultsInfo}>
-                  <Text style={styles.filterResultsText}>
-                    Showing {filteredProducts.length} of {products.length} products
+                
+                {/* Compact product count indicator */}
+                <View style={styles.productCountIndicator}>
+                  <Text style={styles.productCountText}>
+                    {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
                   </Text>
                 </View>
               </View>
 
-              <Text style={styles.sectionTitle}>Components</Text>
+              <Text style={styles.sectionTitle}>Component</Text>
 
               <FieldArray name="components">
                 {({ push, remove }) => (
                   <View>
                     {values.components.map((component, index: number) => (
                       <View key={index} style={styles.componentRow}>
-                        <View style={styles.pickerContainer}>
-                          <Text style={styles.label}>Product*</Text>
-                          <View style={styles.picker}>
-                            <Picker
-                              selectedValue={component.component_id}
-                              onValueChange={(value) =>
-                                setFieldValue(`components.${index}.component_id`, value)
+                        <View style={styles.productColumn}>
+                          <Text style={styles.label}>Product</Text>
+                          <TouchableOpacity 
+                            style={styles.customPicker}
+                            onPress={() => setDropdownVisible(prev => ({...prev, [index]: !prev[index]}))}
+                          >
+                            <Text style={styles.customPickerText}>
+                              {component.component_id === 0 
+                                ? "Select Product" 
+                                : (() => {
+                                    const selectedProduct = products.find(p => p.id === component.component_id);
+                                    return selectedProduct ? `${selectedProduct.name} (${selectedProduct.unit})` : "Select Product";
+                                  })()
                               }
-                            >
-                              <Picker.Item label="Select Product" value={0} />
+                            </Text>
+                            <Text style={styles.customPickerArrow}>▼</Text>
+                          </TouchableOpacity>
+
+                          {dropdownVisible[index] && (
+                            <ScrollView style={styles.customDropdown} nestedScrollEnabled>
+                              <TouchableOpacity
+                                style={styles.customOption}
+                                onPress={() => {
+                                  setFieldValue(`components.${index}.component_id`, 0);
+                                  setDropdownVisible(prev => ({...prev, [index]: false}));
+                                }}
+                              >
+                                <Text>Select Product</Text>
+                              </TouchableOpacity>
                               {filteredProducts.map((product) => (
-                                <Picker.Item
+                                <TouchableOpacity
                                   key={product.id}
-                                  label={`${product.name} (${product.unit})`}
-                                  value={product.id}
-                                />
+                                  style={styles.customOption}
+                                  onPress={() => {
+                                    setFieldValue(`components.${index}.component_id`, product.id);
+                                    setDropdownVisible(prev => ({...prev, [index]: false}));
+                                  }}
+                                >
+                                  <Text>{product.name} ({product.unit})</Text>
+                                </TouchableOpacity>
                               ))}
-                              {/* Show selected product even if it's not in filtered list */}
-                              {component.component_id > 0 && !filteredProducts.find(p => p.id === component.component_id) && (
-                                (() => {
-                                  const selectedProduct = products.find(p => p.id === component.component_id);
-                                  return selectedProduct ? (
-                                    <Picker.Item
-                                      key={selectedProduct.id}
-                                      label={`${selectedProduct.name} (${selectedProduct.unit}) - Selected`}
-                                      value={selectedProduct.id}
-                                    />
-                                  ) : null;
-                                })()
-                              )}
-                            </Picker>
-                          </View>
+                            </ScrollView>
+                          )}
                           {touched.components && 
                            (touched.components as any[])[index] && 
                            errors.components && 
@@ -352,9 +371,9 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
                           )}
                         </View>
 
-                        <View style={styles.quantityContainer}>
+                        <View style={styles.quantityColumn}>
+                          <Text style={styles.label}>Quantity</Text>
                           <TextInput
-                            label="Quantity*"
                             value={component.quantity.toString()}
                             onChangeText={(value) =>
                               setFieldValue(`components.${index}.quantity`, parseFloat(value) || 0)
@@ -380,7 +399,7 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
                           style={styles.removeButton}
                           disabled={values.components.length === 1}
                         >
-                          <Minus size={20} color={values.components.length === 1 ? '#d1d5db' : '#ef4444'} />
+                          <Trash2 size={16} color={values.components.length === 1 ? '#d1d5db' : '#ef4444'} />
                         </TouchableOpacity>
                       </View>
                     ))}
@@ -440,7 +459,7 @@ const styles = StyleSheet.create({
     color: '#1f2937',
   },
   form: {
-    maxHeight: 400,
+    maxHeight: 500,
   },
   input: {
     backgroundColor: 'white',
@@ -518,7 +537,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 20,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
@@ -557,5 +576,83 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontWeight: '500',
     textAlign: 'center',
+  },
+  basicInfoSection: {
+    marginBottom: 12,
+  },
+  filterActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  addFilterButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  filtersRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  filterColumn: {
+    flex: 1,
+  },
+  productColumn: {
+    flex: 2,
+  },
+  quantityColumn: {
+    flex: 1,
+  },
+  productCountIndicator: {
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  productCountText: {
+    fontSize: 11,
+    color: '#0369a1',
+    fontWeight: '500',
+  },
+  customPicker: {
+    borderWidth: 1,
+    borderColor: '#000000',
+    borderRadius: 6,
+    backgroundColor: 'white',
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+  },
+  customPickerText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#374151',
+  },
+  customPickerArrow: {
+    color: '#6b7280',
+  },
+  customDropdown: {
+    maxHeight: 140,
+    borderWidth: 1,
+    borderColor: '#000000',
+    borderTopWidth: 0,
+    backgroundColor: 'white',
+    borderRadius: 0,
+    borderBottomLeftRadius: 6,
+    borderBottomRightRadius: 6,
+  },
+  customOption: {
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
   },
 });

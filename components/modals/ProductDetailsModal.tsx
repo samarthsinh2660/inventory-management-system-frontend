@@ -726,20 +726,76 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
             setEditingFormula(null);
           }}
           editingFormula={editingFormula}
-          onSuccess={(formula) => {
-            // Refresh formulas and product formula
-            dispatch(fetchFormulas());
-            if (product?.product_formula_id) {
-              dispatch(fetchFormulaById(product.product_formula_id))
-                .unwrap()
-                .then((response) => {
-                  setProductFormula(response.data);
-                })
-                .catch(() => {
-                  setProductFormula(null);
+          onSuccess={async (formula) => {
+            try {
+              // If this is a new formula (not editing), assign it to the product
+              if (!editingFormula && formula && product) {
+                const updateData = {
+                  name: product.name,
+                  price: parseFloat(product.price?.toString()) || 0,
+                  min_stock_threshold: parseInt(product.min_stock_threshold?.toString()) || 0,
+                  unit: product.unit,
+                  category: product.category as any,
+                  subcategory_id: parseInt(product.subcategory_id?.toString()) || 0,
+                  location_id: parseInt(product.location_id?.toString()) || 0,
+                  source_type: product.source_type as any,
+                  product_formula_id: formula.id // Assign the newly created formula
+                };
+                
+                await dispatch(updateProduct({
+                  id: product.id!,
+                  data: updateData
+                })).unwrap();
+                
+                // Update the local product object to reflect the new formula ID
+                if (product) {
+                  product.product_formula_id = formula.id;
+                }
+                
+                // Fetch the complete formula data to ensure we have all fields
+                try {
+                  const formulaResponse = await dispatch(fetchFormulaById(formula.id)).unwrap();
+                  setProductFormula(formulaResponse.data);
+                } catch (fetchError) {
+                  // If fetch fails, still set the basic formula data
+                  setProductFormula(formula);
+                }
+                
+                Toast.show({
+                  type: 'success',
+                  text1: 'Success',
+                  text2: 'Formula created and assigned to product',
                 });
+              } else if (editingFormula) {
+                Toast.show({
+                  type: 'success',
+                  text1: 'Success',
+                  text2: 'Formula updated successfully',
+                });
+              }
+              
+              // Refresh formulas list
+            dispatch(fetchFormulas());
+              
+              // Only fetch formula by ID for editing scenarios
+              if (editingFormula && product?.product_formula_id) {
+                try {
+                  const response = await dispatch(fetchFormulaById(product.product_formula_id)).unwrap();
+                  setProductFormula(response.data);
+                } catch (fetchError) {
+                  setProductFormula(null);
             }
+              }
+              
             onProductUpdated?.();
+            } catch (error: any) {
+              console.error('Formula operation error:', error);
+              Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: error.message || 'Failed to assign formula to product',
+              });
+            }
           }}
         />
       </KeyboardAvoidingView>
