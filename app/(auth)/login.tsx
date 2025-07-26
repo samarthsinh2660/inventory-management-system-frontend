@@ -32,10 +32,24 @@ export default function Login() {
         router.replace('/(employee)');
       }
     } catch (error: any) {
+      // Handle structured error response
+      const errorMessage = error.message || 'Invalid credentials';
+      const errorCode = error.code;
+      
+      let toastType = 'error';
+      let title = 'Login Failed';
+      
+      // Handle specific error codes
+      if (errorCode === 20005) {
+        title = 'Unauthorized Access';
+      }
+      
       Toast.show({
-        type: 'error',
-        text1: 'Login Failed',
-        text2: error.message || 'Invalid credentials',
+        type: toastType,
+        text1: title,
+        text2: errorMessage,
+        position: 'bottom',
+        visibilityTime: 4000,
       });
     }
   };

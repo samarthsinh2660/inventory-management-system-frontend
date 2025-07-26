@@ -99,7 +99,27 @@ export const signin = createAsyncThunk(
       };
     } catch (error: any) {
       console.error('Signin error:', error.response?.data);
-      return rejectWithValue(error.response?.data?.message || 'Invalid credentials');
+      
+      // Handle specific error codes
+      if (error.response?.data?.error?.code === 20005) {
+        return rejectWithValue({
+          code: 20005,
+          message: 'Your account is not authorized. Please contact your administrator.'
+        });
+      }
+      
+      // Handle other structured errors
+      if (error.response?.data?.error?.message) {
+        return rejectWithValue({
+          code: error.response.data.error.code,
+          message: error.response.data.error.message
+        });
+      }
+      
+      return rejectWithValue({
+        code: 'UNKNOWN',
+        message: 'Invalid credentials or server error'
+      });
     }
   }
 );
