@@ -9,6 +9,44 @@ export enum ProductSourceType {
     TRADING = 'trading'
 }
 
+// PurchaseInfo (Supplier) interface
+export interface PurchaseInfo {
+    id: number;
+    business_name: string;
+    address?: string | null;
+    phone_number?: string | null;
+    email?: string | null;
+    gst_number?: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+// PurchaseInfo state interface
+export interface PurchaseInfoState {
+    list: PurchaseInfo[];
+    selected: PurchaseInfo | null;
+    loading: boolean;
+    error: string | null;
+    meta: {
+      count: number;
+    };
+}
+
+// Create PurchaseInfo data interface
+export interface CreatePurchaseInfoData {
+    business_name: string;
+    address?: string | null;
+    phone_number?: string | null;
+    email?: string | null;
+    gst_number?: string | null;
+}
+
+// Update PurchaseInfo data interface
+export interface UpdatePurchaseInfoData {
+    id: number;
+    data: Partial<CreatePurchaseInfoData>;
+}
+
 // Product interface updated to match API response
 export interface Product {
     id: number;
@@ -21,12 +59,19 @@ export interface Product {
     location_id: number;
     min_stock_threshold: number | null;
     product_formula_id: number | null; // Renamed from formula_id
+    purchase_info_id?: number | null; // Link to supplier
     created_at: string;
     updated_at: string;
     // Joined fields in responses
     subcategory_name?: string;
     location_name?: string;
     product_formula_name?: string; // Added for formula name
+    // Purchase info fields (from JOIN queries)
+    purchase_business_name?: string | null;
+    purchase_address?: string | null;
+    purchase_phone?: string | null;
+    purchase_email?: string | null;
+    purchase_gst?: string | null;
   }
 
   export interface ProductsState {
@@ -74,6 +119,7 @@ export interface Product {
     min_stock_threshold?: number | null;
     price?: number;
     product_formula_id?: number | null;
+    purchase_info_id?: number | null;
   }
 
   
@@ -170,6 +216,7 @@ export interface UpdateLocationData {
     id: number;
     name: string;
     description?: string | null;
+    category: ProductCategory;
   }
 
   export interface SubcategoriesState {
@@ -187,12 +234,13 @@ export interface UpdateLocationData {
 export interface CreateSubcategoryData {
     name: string;
     description?: string | null;
+    category: ProductCategory;
   }
 
   // PUT update subcategory
 export interface UpdateSubcategoryData {
     id: number;
-    data: CreateSubcategoryData;
+    data: Partial<CreateSubcategoryData>;
   }
 
   export interface CustomSearchBarProps {

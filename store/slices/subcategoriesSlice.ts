@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { API_URL } from '../../utils/constant';
-import { Subcategory, SubcategoriesState, CreateSubcategoryData, UpdateSubcategoryData } from '@/types/product';
+import { Subcategory, SubcategoriesState, CreateSubcategoryData, UpdateSubcategoryData, ProductCategory } from '@/types/product';
 import { getAuthHeader } from '@/utils/authHelper';
 
 // API response interface
@@ -24,10 +24,10 @@ const initialState: SubcategoriesState = {
   }
 };
 
-// GET all subcategories
+// GET subcategories with optional category filter
 export const fetchSubcategories = createAsyncThunk(
   'subcategories/fetchSubcategories',
-  async (_, { rejectWithValue, getState }) => {
+  async (category: ProductCategory | undefined, { rejectWithValue, getState }) => {
     try {
       const state = getState() as { auth: { accessToken: string | null } };
       const token = state.auth.accessToken;
@@ -36,7 +36,12 @@ export const fetchSubcategories = createAsyncThunk(
         throw new Error('Authentication required');
       }
       
-      const response = await axios.get<ApiResponse<Subcategory[]>>(`${API_URL}/subcategories`, getAuthHeader(token));
+      // Build URL with optional category parameter
+      const url = category 
+        ? `${API_URL}/subcategories?category=${category}`
+        : `${API_URL}/subcategories`;
+      
+      const response = await axios.get<ApiResponse<Subcategory[]>>(url, getAuthHeader(token));
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
@@ -46,6 +51,9 @@ export const fetchSubcategories = createAsyncThunk(
     }
   }
 );
+
+// Keep the old function name as an alias for backward compatibility
+export const fetchSubcategoriesByCategory = fetchSubcategories;
 
 // GET subcategory by ID
 export const fetchSubcategoryById = createAsyncThunk(

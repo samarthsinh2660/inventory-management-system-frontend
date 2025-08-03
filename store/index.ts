@@ -12,6 +12,7 @@ import subcategoriesSlice from './slices/subcategoriesSlice';
 import locationsSlice from './slices/locationsSlice';
 import usersSlice from './slices/usersSlice';
 import formulasSlice from './slices/formulasSlice';
+import purchaseInfoSlice from './slices/purchaseInfoSlice';
 
 const persistConfig = {
   key: 'root',
@@ -29,6 +30,7 @@ const rootReducer = combineReducers({
   locations: locationsSlice,
   users: usersSlice,
   formulas: formulasSlice,
+  purchaseInfo: purchaseInfoSlice,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

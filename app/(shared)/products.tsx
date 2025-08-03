@@ -8,7 +8,7 @@ import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { IfMaster } from '../../components/IfMaster';
 import { CategoryBadge } from '../../components/CategoryBadge';
-import { fetchProducts } from '../../store/slices/productsSlice';
+import { fetchProducts, fetchProductById } from '../../store/slices/productsSlice';
 import { fetchSubcategories } from '../../store/slices/subcategoriesSlice';
 import { fetchLocations } from '../../store/slices/locationsSlice';
 import { fetchFormulas } from '../../store/slices/formulasSlice';
@@ -201,8 +201,29 @@ export default function Products() {
       <TouchableOpacity 
         style={styles.productCard}
         onPress={() => {
+          // First set with basic info to show something immediately
           setSelectedProduct({ ...item, current_stock: currentStock, total_value: totalValue });
-          setShowProductDetails(true);
+          
+          // Then fetch complete product details to get fresh data
+          dispatch(fetchProductById(item.id))
+            .unwrap()
+            .then((response: any) => {
+              if (response.success && response.data) {
+                // Update with complete data including purchase_info
+                setSelectedProduct({
+                  ...response.data,
+                  current_stock: currentStock, 
+                  total_value: totalValue
+                });
+              }
+            })
+            .catch((error: any) => {
+              console.error('Failed to fetch product details:', error);
+            })
+            .finally(() => {
+              // Show modal after fetch attempt completes (success or error)
+              setShowProductDetails(true);
+            });
         }}
       >
         {/* Product Header - Title with stock status and category */}

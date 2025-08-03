@@ -13,16 +13,19 @@ import { createProduct } from '../store/slices/productsSlice';
 import { fetchSubcategories } from '../store/slices/subcategoriesSlice';
 import { fetchLocations } from '../store/slices/locationsSlice';
 import { fetchFormulas } from '../store/slices/formulasSlice';
+import { fetchPurchaseInfo } from '../store/slices/purchaseInfoSlice';
+import { ProductCategory } from '../types/product';
 import { CreateSubcategoryModal } from '../components/modals/CreateSubcategoryModal';
 import { CreateLocationModal } from '../components/modals/CreateLocationModal';
 import { CreateFormulaModal } from '../components/modals/CreateFormulaModal';
+import { CreatePurchaseInfoModal } from '../components/modals/CreatePurchaseInfoModal';
 import Toast from 'react-native-toast-message';
 
 const validationSchema = Yup.object({
   name: Yup.string().required('Name is required'),
   unit: Yup.string().required('Unit is required'),
   cost: Yup.number().min(0, 'Cost must be positive').required('Cost is required'),
-  category: Yup.string().oneOf(['raw', 'semi', 'finished']).required('Category is required'),
+  category: Yup.string().oneOf(Object.values(ProductCategory)).required('Category is required'),
   source_type: Yup.string().oneOf(['manufacturing', 'trading']).required('Source type is required'),
   subcategory_id: Yup.number().min(1, 'Subcategory is required').required('Subcategory is required'),
   location_id: Yup.number().min(1, 'Location is required').required('Location is required'),
@@ -36,16 +39,26 @@ export default function CreateProduct() {
   const subcategories = useAppSelector(state => state.subcategories.list);
   const locations = useAppSelector(state => state.locations.list);
   const formulas = useAppSelector(state => state.formulas.list);
+  const suppliers = useAppSelector(state => state.purchaseInfo.list);
   
   const [showSubcategoryModal, setShowSubcategoryModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showFormulaModal, setShowFormulaModal] = useState(false);
+  const [showSupplierModal, setShowSupplierModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<ProductCategory>(ProductCategory.RAW);
 
   useEffect(() => {
-    dispatch(fetchSubcategories());
     dispatch(fetchLocations());
     dispatch(fetchFormulas());
+    dispatch(fetchPurchaseInfo());
+    // Fetch subcategories for the initial category
+    dispatch(fetchSubcategories(selectedCategory));
   }, [dispatch]);
+
+  // Fetch subcategories when category changes
+  useEffect(() => {
+    dispatch(fetchSubcategories(selectedCategory));
+  }, [dispatch, selectedCategory]);
 
   const handleSubmit = async (values: any) => {
     try {
@@ -94,12 +107,13 @@ export default function CreateProduct() {
           name: '',
           unit: '',
           cost: '',
-          category: 'raw',
+          category: ProductCategory.RAW,
           source_type: 'trading',
           subcategory_id: 0,
           location_id: 0,
           min_stock_threshold: '',
           product_formula_id: 0,
+          purchase_info_id: 0,
         }}
         validationSchema={validationSchema}
         onSubmit={handleSubmit}
@@ -156,18 +170,22 @@ export default function CreateProduct() {
                 <View style={[styles.picker, values.category && styles.selectedPicker]}>
                   <Picker
                     selectedValue={values.category}
-                    onValueChange={(value) => setFieldValue('category', value)}
+                    onValueChange={(value) => {
+                      setFieldValue('category', value);
+                      setFieldValue('subcategory_id', 0); // Reset subcategory when category changes
+                      setSelectedCategory(value as ProductCategory);
+                    }}
                   >
-                    <Picker.Item label="Raw Material" value="raw" />
-                    <Picker.Item label="Semi-Finished" value="semi" />
-                    <Picker.Item label="Finished Product" value="finished" />
+                    <Picker.Item label="Raw Material" value={ProductCategory.RAW} />
+                    <Picker.Item label="Semi-Finished" value={ProductCategory.SEMI} />
+                    <Picker.Item label="Finished Product" value={ProductCategory.FINISHED} />
                   </Picker>
                 </View>
                 <View style={styles.selectionIndicator}>
                   <Check size={16} color="#10b981" />
                   <Text style={styles.selectedStatus}>
-                    {values.category === 'raw' ? 'Raw Material' : 
-                     values.category === 'semi' ? 'Semi-Finished' : 'Finished Product'} selected
+                    {values.category === ProductCategory.RAW ? 'Raw Material' : 
+                     values.category === ProductCategory.SEMI ? 'Semi-Finished' : 'Finished Product'} selected
                   </Text>
                 </View>
               </View>
@@ -277,6 +295,49 @@ export default function CreateProduct() {
             </View>
 
             <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Supplier Information</Text>
+              
+              <View style={styles.dropdownWithAdd}>
+                <View style={[styles.pickerContainer, { flex: 1 }]}>
+                  <Text style={styles.label}>Supplier</Text>
+                  <View style={[styles.picker, values.purchase_info_id > 0 && styles.selectedPicker]}>
+                    <Picker
+                      selectedValue={values.purchase_info_id}
+                      onValueChange={(value) => setFieldValue('purchase_info_id', value)}
+                    >
+                      <Picker.Item label="No Supplier" value={0} />
+                      {suppliers.map((supplier) => (
+                        <Picker.Item
+                          key={supplier.id}
+                          label={supplier.business_name}
+                          value={supplier.id}
+                        />
+                      ))}
+                    </Picker>
+                  </View>
+                  <View style={styles.selectionIndicator}>
+                    {values.purchase_info_id > 0 ? (
+                      <View style={styles.selectionIndicator}>
+                        <Check size={16} color="#10b981" />
+                        <Text style={styles.selectedStatus}>
+                          {getSelectedItemName(suppliers, values.purchase_info_id)} selected
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.unselectedStatus}>No supplier selected</Text>
+                    )}
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => setShowSupplierModal(true)}
+                >
+                  <Plus size={20} color="#2563eb" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.section}>
               <Text style={styles.sectionTitle}>Inventory Settings</Text>
               
               <TextInput
@@ -358,8 +419,8 @@ export default function CreateProduct() {
         isVisible={showSubcategoryModal}
         onClose={() => setShowSubcategoryModal(false)}
         onSuccess={(subcategory) => {
-          // Refresh subcategories list
-          dispatch(fetchSubcategories());
+          // Refresh subcategories list for the current category
+          dispatch(fetchSubcategories(selectedCategory));
         }}
       />
 
@@ -385,6 +446,15 @@ export default function CreateProduct() {
             text1: 'Success',
             text2: 'Formula created successfully',
           });
+        }}
+      />
+
+      <CreatePurchaseInfoModal
+        isVisible={showSupplierModal}
+        onClose={() => setShowSupplierModal(false)}
+        onSuccess={(supplier) => {
+          // Refresh suppliers list
+          dispatch(fetchPurchaseInfo());
         }}
       />
     </SafeAreaView>

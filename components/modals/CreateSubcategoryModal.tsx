@@ -4,15 +4,18 @@ import Modal from 'react-native-modal';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { TextInput, Button } from 'react-native-paper';
+import { Picker } from '@react-native-picker/picker';
 import { X } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { createSubcategory, updateSubcategory } from '../../store/slices/subcategoriesSlice';
 import Toast from 'react-native-toast-message';
 import { CreateSubcategoryModalProps } from '@/types/general';
+import { ProductCategory } from '@/types/product';
 
 const validationSchema = Yup.object({
   name: Yup.string().required('Name is required'),
   description: Yup.string(),
+  category: Yup.string().oneOf(Object.values(ProductCategory)).required('Category is required'),
 });
 
 export const CreateSubcategoryModal: React.FC<CreateSubcategoryModalProps> = ({
@@ -24,7 +27,7 @@ export const CreateSubcategoryModal: React.FC<CreateSubcategoryModalProps> = ({
   const dispatch = useAppDispatch();
   const isEditing = !!editingSubcategory;
 
-  const handleSubmit = async (values: { name: string; description: string }) => {
+  const handleSubmit = async (values: { name: string; description: string; category: ProductCategory }) => {
     try {
       let result;
       if (isEditing) {
@@ -61,9 +64,10 @@ export const CreateSubcategoryModal: React.FC<CreateSubcategoryModalProps> = ({
       return {
         name: editingSubcategory.name || '',
         description: editingSubcategory.description || '',
+        category: editingSubcategory.category || ProductCategory.RAW,
       };
     }
-    return { name: '', description: '' };
+    return { name: '', description: '', category: ProductCategory.RAW };
   };
 
   return (
@@ -97,6 +101,24 @@ export const CreateSubcategoryModal: React.FC<CreateSubcategoryModalProps> = ({
               {touched.name && errors.name && (
                 <Text style={styles.errorText}>{String(errors.name)}</Text>
               )}
+
+              <View style={styles.pickerContainer}>
+                <Text style={styles.pickerLabel}>Category*</Text>
+                <View style={styles.pickerWrapper}>
+                  <Picker
+                    selectedValue={values.category}
+                    onValueChange={handleChange('category')}
+                    style={styles.picker}
+                  >
+                    <Picker.Item label="Raw Materials" value={ProductCategory.RAW} />
+                    <Picker.Item label="Semi-Finished" value={ProductCategory.SEMI} />
+                    <Picker.Item label="Finished Products" value={ProductCategory.FINISHED} />
+                  </Picker>
+                </View>
+                {touched.category && errors.category && (
+                  <Text style={styles.errorText}>{String(errors.category)}</Text>
+                )}
+              </View>
 
               <TextInput
                 label="Description"
@@ -169,5 +191,23 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
+  },
+  pickerContainer: {
+    marginBottom: 8,
+  },
+  pickerLabel: {
+    fontSize: 16,
+    color: '#374151',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  pickerWrapper: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 4,
+    backgroundColor: 'white',
+  },
+  picker: {
+    height: 50,
   },
 });

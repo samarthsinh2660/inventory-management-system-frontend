@@ -2,13 +2,13 @@
   export type ViewMode = 'all' | 'mine';
 
 export type SizeProps = 'small' | 'large' | number | undefined;
-  export interface LoadingSpinnerProps {
-    size?: SizeProps;
-    color?: string;
-  }
+export interface LoadingSpinnerProps {
+  size?: SizeProps;
+  color?: string;
+}
 
-  // Modal component interfaces
-import { Product, Subcategory, Location, Formula } from './product';
+// Modal component interfaces
+import { Product, Subcategory, Location, Formula, ProductCategory, PurchaseInfo } from './product';
 
 // Base modal props
 export interface BaseModalProps {
@@ -34,11 +34,27 @@ export interface SubcategoryModalItem {
   id: number;
   name: string;
   description?: string | null;
+  category: ProductCategory;
 }
 
 export interface CreateSubcategoryModalProps extends BaseModalProps {
   onSuccess?: (subcategory: SubcategoryModalItem) => void;
   editingSubcategory?: SubcategoryModalItem;
+}
+
+// PurchaseInfo (Supplier) Modal Types
+export interface PurchaseInfoModalItem {
+  id: number;
+  business_name: string;
+  address?: string | null;
+  phone_number?: string | null;
+  email?: string | null;
+  gst_number?: string | null;
+}
+
+export interface CreatePurchaseInfoModalProps extends BaseModalProps {
+  onSuccess?: (purchaseInfo: PurchaseInfoModalItem) => void;
+  editingPurchaseInfo?: PurchaseInfoModalItem;
 }
 
 // Formula Modal Types
@@ -70,8 +86,9 @@ export interface ProductModalItem {
   subcategory_id: number;
   location_id: number;
   source_type: string;
-  min_stock_threshold: number;
+  min_stock_threshold: number | null;
   product_formula_id?: number | null;
+  purchase_info_id?: number | null;
   subcategory_name?: string;
   location_name?: string;
   product_formula_name?: string;
@@ -82,6 +99,12 @@ export interface ProductModalItem {
   is_manual?: boolean;
   created_at?: string;
   updated_at?: string;
+  // Supplier information (joined from PurchaseInfo)
+  purchase_business_name?: string | null;
+  purchase_address?: string | null;
+  purchase_phone?: string | null;
+  purchase_email?: string | null;
+  purchase_gst?: string | null;
 }
 
 export interface ProductFormulaDetails {
@@ -173,6 +196,7 @@ export interface ProductFiltersModalProps extends BaseModalProps {
   subcategories: SubcategoryModalItem[];
   locations: LocationModalItem[];
   formulas: FormulaModalItem[];
+  purchaseInfos?: PurchaseInfoModalItem[];
 }
 
 // Edit Profile Modal Types

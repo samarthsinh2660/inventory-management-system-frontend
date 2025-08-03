@@ -8,7 +8,7 @@ import { useAppSelector } from '../../hooks/useAppSelector';
 import { IfMaster } from '../../components/IfMaster';
 import { fetchProducts } from '../../store/slices/productsSlice';
 import { fetchInventoryEntries, fetchUserEntries, fetchInventoryBalance } from '../../store/slices/inventorySlice';
-import { fetchAlerts, fetchNotifications } from '../../store/slices/alertsSlice';
+import { fetchAlerts, fetchNotifications, checkAlerts } from '../../store/slices/alertsSlice';
 import { fetchUsers } from '../../store/slices/usersSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { 
@@ -54,12 +54,17 @@ export default function Dashboard() {
       // Fetch all data with proper parameters for dashboard - higher limit to get more complete data
       const dashboardParams = { page: 1, limit: 100 };
       
+      // For masters, first check for new alerts before fetching notifications
+      if (isMaster) {
+        await dispatch(checkAlerts());
+      }
+      
       await Promise.all([
         dispatch(fetchProducts(dashboardParams)),
         dispatch(fetchInventoryEntries(dashboardParams)),
         dispatch(fetchInventoryBalance()),
         !isMaster && dispatch(fetchUserEntries(dashboardParams)),
-        isMaster && dispatch(fetchAlerts(dashboardParams)),
+        isMaster && dispatch(fetchAlerts({})),
         isMaster && dispatch(fetchNotifications()),
         isMaster && dispatch(fetchUsers()),
       ].filter(Boolean));
@@ -300,23 +305,38 @@ export default function Dashboard() {
               style={styles.quickActionCard}
               onPress={() => router.push('/inventory')}
             >
-              <Activity size={24} color="#2563eb" />
-              <Text style={styles.quickActionText}>Add Entry</Text>
+              <View style={styles.quickActionIcon}>
+                <Activity size={24} color="#2563eb" />
+              </View>
+              <Text style={styles.quickActionText} numberOfLines={2}>Add Entry</Text>
             </TouchableOpacity>
             <IfMaster>
               <TouchableOpacity 
                 style={styles.quickActionCard}
                 onPress={() => router.push('/create-product')}
               >
-                <TrendingUp size={24} color="#f59e0b" />
-                <Text style={styles.quickActionText}>Add Product</Text>
+                <View style={styles.quickActionIcon}>
+                  <TrendingUp size={24} color="#f59e0b" />
+                </View>
+                <Text style={styles.quickActionText} numberOfLines={2}>Add Product</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.quickActionCard}
                 onPress={() => router.push('../subcategories')}
               >
-                <Tag size={24} color="#8b5cf6" />
-                <Text style={styles.quickActionText}>Manage Subcategories</Text>
+                <View style={styles.quickActionIcon}>
+                  <Tag size={24} color="#8b5cf6" />
+                </View>
+                <Text style={styles.quickActionText} numberOfLines={2}>Manage{"\n"}Subcategories</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.quickActionCard}
+                onPress={() => router.push('../manage-suppliers')}
+              >
+                <View style={styles.quickActionIcon}>
+                  <Package size={24} color="#059669" />
+                </View>
+                <Text style={styles.quickActionText} numberOfLines={2}>Suppliers</Text>
               </TouchableOpacity>
             </IfMaster>
           </View>
@@ -497,14 +517,16 @@ const styles = StyleSheet.create({
 
   quickActions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 5, // Increased gap for better spacing
+    flexWrap: 'wrap', // Changed from 'nowrap' to 'wrap'
   },
   quickActionCard: {
-    flex: 1,
+    width: isTablet ? (width - 80) / 4 : (width - 64) / 3, // Increased width - 4 per row on tablet, 3 per row on mobile
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 12, // Slightly larger border radius
+    padding: 8, // Increased padding
     alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -512,12 +534,19 @@ const styles = StyleSheet.create({
     elevation: 2,
     borderWidth: 1,
     borderColor: '#f1f5f9',
+    marginBottom: 8, // Increased bottom margin for wrapped items
+    minHeight: 30, // Added minimum height for consistency
+  },
+  quickActionIcon: {
+    marginBottom: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   quickActionText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#374151',
-    marginTop: 8,
     textAlign: 'center',
+    lineHeight: 16,
   },
 });

@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, Check } from 'lucide-react-native';
 import { Picker } from '@react-native-picker/picker';
 import { ProductFiltersModalProps, ProductFiltersState } from '@/types/general';
+import { ProductCategory } from '@/types/product';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -48,11 +49,18 @@ export function ProductFiltersModal({
   };
 
   const categories = [
-    { label: 'Raw Materials', value: 'raw' },
-    { label: 'Finished Products', value: 'finished' },
-    { label: 'Packaging', value: 'packaging' },
-    { label: 'Chemicals', value: 'chemicals' }
+    { label: 'Raw Materials', value: ProductCategory.RAW },
+    { label: 'Semi-Finished', value: ProductCategory.SEMI },
+    { label: 'Finished Products', value: ProductCategory.FINISHED }
   ];
+
+  // Filter subcategories based on selected category
+  const getFilteredSubcategories = () => {
+    if (!tempFilters.category) {
+      return subcategories;
+    }
+    return subcategories.filter(sub => sub.category === tempFilters.category);
+  };
   const sourceTypes = ['manufacturing', 'trading'];
 
 
@@ -118,7 +126,7 @@ export function ProductFiltersModal({
                 style={styles.picker}
               >
                 <Picker.Item label="All Subcategories" value={0} />
-                {subcategories.map((subcategory) => (
+                {getFilteredSubcategories().map((subcategory) => (
                   <Picker.Item
                     key={subcategory.id}
                     label={subcategory.name}

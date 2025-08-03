@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -25,18 +25,35 @@ import {
   Plus,
   CircleDollarSign,
   TrendingUp,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
-import { updateProduct, deleteProduct } from '../../store/slices/productsSlice';
+import { updateProduct, deleteProduct, fetchProductById } from '../../store/slices/productsSlice';
 import { fetchFormulaById, fetchFormulas } from '../../store/slices/formulasSlice';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import Toast from 'react-native-toast-message';
+
+// Toast management to prevent spam
+let toastTimeout: ReturnType<typeof setTimeout> | null = null;
+const showToast = (type: 'success' | 'error' | 'info', text1: string, text2: string) => {
+  // Clear any existing toast timeout
+  if (toastTimeout) {
+    clearTimeout(toastTimeout);
+  }
+  
+  // Hide current toast and show new one after a brief delay
+  Toast.hide();
+  toastTimeout = setTimeout(() => {
+    Toast.show({ type, text1, text2 });
+  }, 100);
+};
 import { Picker } from '@react-native-picker/picker';
 import { IfMaster } from '../IfMaster';
 import { CreateFormulaModal } from './CreateFormulaModal';
-import { ProductDetailsModalProps } from '@/types/general';
+import { ProductDetailsModalProps, ProductModalItem } from '@/types/general';
 import { handelProductEdit } from '@/types/product';
 
 const validationSchema = Yup.object({
@@ -58,6 +75,8 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
   const [productFormula, setProductFormula] = useState<any>(null);
   const [showFormulaModal, setShowFormulaModal] = useState(false);
   const [editingFormula, setEditingFormula] = useState<any>(null);
+  const [detailedProduct, setDetailedProduct] = useState<ProductModalItem | null>(null);
+  const [supplierExpanded, setSupplierExpanded] = useState(false);
 
   const subcategories = useAppSelector(state => state.subcategories.list || []);
   const locations = useAppSelector(state => state.locations.list || []);
@@ -67,14 +86,16 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
   const isMaster = user?.role === 'master';
 
   useEffect(() => {
-    if (visible) {
+    if (visible && product) {
       setEditMode(false);
-      // Fetch formula details if product has a formula
-      if (product?.product_formula_id) {
+      setDetailedProduct(product as ProductModalItem);
+      
+      // Fetch formula if exists
+      if (product.product_formula_id) {
         dispatch(fetchFormulaById(product.product_formula_id))
           .unwrap()
-          .then((response) => {
-            setProductFormula(response.data);
+          .then((formulaResponse) => {
+            setProductFormula(formulaResponse.data);
           })
           .catch(() => {
             setProductFormula(null);
@@ -83,12 +104,69 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
         setProductFormula(null);
       }
     }
-  }, [visible, product, dispatch]);
+  }, [visible, product?.id, dispatch]);
+
+  // Reset when modal closes
+  useEffect(() => {
+    if (!visible) {
+      setDetailedProduct(null);
+      setProductFormula(null);
+    }
+  }, [visible]);
 
   const handleClose = () => {
     setEditMode(false);
     setProductFormula(null);
     onClose();
+  };
+
+  const handleSupplierDelete = () => {
+    if (!product) return;
+    
+    Alert.alert(
+      'Remove Supplier',
+      `Are you sure you want to remove supplier information from "${product.name}"?\n\nThis will permanently delete all supplier details including business name, contact information, and GST details.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Remove', 
+          style: 'destructive',
+          onPress: async () => {
+            if (!product) return;
+            
+            try {
+              // Update product to remove supplier reference
+              const updateData = {
+                name: product.name,
+                price: parseFloat(product.price?.toString() || '0') || 0,
+                min_stock_threshold: parseInt((product.min_stock_threshold || 0).toString()) || 0,
+                unit: product.unit,
+                category: product.category as any,
+                subcategory_id: parseInt((product.subcategory_id || 0).toString()) || 0,
+                location_id: parseInt((product.location_id || 0).toString()) || 0,
+                source_type: product.source_type as any,
+                purchase_info_id: null // Remove supplier reference
+              };
+              
+              await dispatch(updateProduct({
+                id: product.id!,
+                data: updateData
+              })).unwrap();
+              
+              showToast('success', 'Success', 'Supplier information removed from product');
+              
+              // Refresh product data from backend to get updated state
+              const updatedProduct = await dispatch(fetchProductById(product.id)).unwrap();
+              setDetailedProduct(updatedProduct.data);
+              
+              onProductUpdated?.();
+            } catch (error: any) {
+              showToast('error', 'Error', error.message || 'Failed to remove supplier information');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const getSelectedItemName = (items: Array<{ id: number; name: string }>, selectedId: number) => {
@@ -116,20 +194,12 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
          data: updateData
        })).unwrap();
 
-      Toast.show({
-        type: 'success',
-        text1: 'Success',
-        text2: 'Product updated successfully',
-      });
+      showToast('success', 'Success', 'Product updated successfully');
 
       setEditMode(false);
       onProductUpdated?.();
     } catch (error: any) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: error.message || 'Failed to update product',
-      });
+      showToast('error', 'Error', error.message || 'Failed to update product');
     } finally {
       setLoading(false);
     }
@@ -148,19 +218,11 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
             try {
               setLoading(true);
               await dispatch(deleteProduct(product?.id!)).unwrap();
-              Toast.show({
-                type: 'success',
-                text1: 'Success',
-                text2: 'Product deleted successfully',
-              });
+              showToast('success', 'Success', 'Product deleted successfully');
               onProductUpdated?.();
               handleClose();
             } catch (error: any) {
-              Toast.show({
-                type: 'error',
-                text1: 'Error',
-                text2: error.message || 'Failed to delete product',
-              });
+              showToast('error', 'Error', error.message || 'Failed to delete product');
             } finally {
               setLoading(false);
             }
@@ -296,46 +358,37 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                           style={styles.formulaIconButton}
                           onPress={() => {
                             Alert.alert(
-                              'Remove Formula',
-                              `Are you sure you want to remove "${productFormula.name}" from this product?`,
+                              'Delete Formula',
+                              `Are you sure you want to permanently delete the formula "${productFormula.name}"?\n\nThis will remove the formula from the database and unassign it from this product. This action cannot be undone.`,
                               [
                                 { text: 'Cancel', style: 'cancel' },
                                 { 
-                                  text: 'Remove', 
+                                  text: 'Delete', 
                                   style: 'destructive',
                                   onPress: async () => {
+                                    if (!product || !productFormula) return;
+                                    
                                     try {
-                                      // Update product to remove formula
-                                      const updateData = {
-                                        name: product.name,
-                                        price: parseFloat(product.price?.toString()) || 0,
-                                        min_stock_threshold: parseInt(product.min_stock_threshold?.toString()) || 0,
-                                        unit: product.unit,
-                                        category: product.category as any,
-                                        subcategory_id: parseInt(product.subcategory_id?.toString()) || 0,
-                                        location_id: parseInt(product.location_id?.toString()) || 0,
-                                        source_type: product.source_type as any,
-                                        product_formula_id: null
-                                      };
+                                      // First, update the product to remove formula reference
                                       await dispatch(updateProduct({
-                                        id: product?.id!,
-                                        data: updateData
+                                        id: product.id,
+                                        data: { product_formula_id: null }
                                       })).unwrap();
                                       
-                                      Toast.show({
-                                        type: 'success',
-                                        text1: 'Success',
-                                        text2: 'Formula removed from product',
-                                      });
+                                      // Then, delete the actual formula record from the database
+                                      const { deleteFormula } = await import('../../store/slices/formulasSlice');
+                                      await dispatch(deleteFormula(productFormula.id)).unwrap();
                                       
+                                      // Refresh product data from backend to get updated state
+                                      const updatedProduct = await dispatch(fetchProductById(product.id)).unwrap();
+                                      setDetailedProduct(updatedProduct.data);
                                       setProductFormula(null);
+                                      
+                                      showToast('success', 'Success', 'Formula deleted successfully');
+                                      
                                       onProductUpdated?.();
                                     } catch (error: any) {
-                                      Toast.show({
-                                        type: 'error',
-                                        text1: 'Error',
-                                        text2: error.message || 'Failed to remove formula',
-                                      });
+                                      showToast('error', 'Error', error.message || 'Failed to delete formula');
                                     }
                                   }
                                 }
@@ -390,7 +443,6 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                   
                   <View style={styles.formulaMeta}>
                     <Text style={styles.formulaMetaText}>
-                      Formula ID: {productFormula.id} • 
                       Created: {productFormula.created_at ? new Date(productFormula.created_at).toLocaleDateString() : 'Unknown'}
                     </Text>
                   </View>
@@ -406,6 +458,69 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                     </Text>
                 </View>
               )}
+              </View>
+
+              {/* Supplier Information Dropdown Section */}
+              <View style={styles.supplierCard}>
+                <View style={styles.supplierHeader}>
+                  <TouchableOpacity 
+                    style={styles.supplierHeaderLeft}
+                    onPress={() => setSupplierExpanded(!supplierExpanded)}
+                  >
+                    <Package size={20} color="#059669" />
+                    <Text style={styles.supplierTitle}>Supplier Information</Text>
+                  </TouchableOpacity>
+                  <View style={styles.supplierHeaderRight}>
+                    {detailedProduct?.purchase_business_name && (
+                      <IfMaster>
+                        <TouchableOpacity 
+                          style={styles.supplierDeleteButton}
+                          onPress={handleSupplierDelete}
+                        >
+                          <Trash2 size={14} color="#ef4444" />
+                        </TouchableOpacity>
+                      </IfMaster>
+                    )}
+                    <TouchableOpacity 
+                      onPress={() => setSupplierExpanded(!supplierExpanded)}
+                    >
+                      {supplierExpanded ? (
+                        <ChevronUp size={20} color="#6b7280" />
+                      ) : (
+                        <ChevronDown size={20} color="#6b7280" />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                
+                {supplierExpanded && (
+                  <View style={styles.supplierInfo}>
+                    {detailedProduct?.purchase_business_name ? (
+                      <>
+                        <Text style={styles.supplierBusinessName}>{detailedProduct.purchase_business_name}</Text>
+                        {detailedProduct.purchase_address && (
+                          <Text style={styles.supplierContact}>Address: {detailedProduct.purchase_address}</Text>
+                        )}
+                        {detailedProduct.purchase_email && (
+                          <Text style={styles.supplierEmail}>Email: {detailedProduct.purchase_email}</Text>
+                        )}
+                        {detailedProduct.purchase_phone && (
+                          <Text style={styles.supplierPhone}>Phone: {detailedProduct.purchase_phone}</Text>
+                        )}
+                        {detailedProduct.purchase_gst && (
+                          <Text style={styles.supplierPhone}>GST: {detailedProduct.purchase_gst}</Text>
+                        )}
+                      </>
+                    ) : (
+                      <View style={styles.noSupplierState}>
+                        <Text style={styles.noSupplierText}>No supplier assigned</Text>
+                        <Text style={styles.noSupplierSubtext}>
+                          This product is not linked to any supplier
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
               </View>
 
               <View style={styles.metaCard}>
@@ -732,12 +847,12 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
               if (!editingFormula && formula && product) {
                 const updateData = {
                   name: product.name,
-                  price: parseFloat(product.price?.toString()) || 0,
-                  min_stock_threshold: parseInt(product.min_stock_threshold?.toString()) || 0,
+                  price: parseFloat((product.price || 0).toString()) || 0,
+                  min_stock_threshold: parseInt((product.min_stock_threshold || 0).toString()) || 0,
                   unit: product.unit,
                   category: product.category as any,
-                  subcategory_id: parseInt(product.subcategory_id?.toString()) || 0,
-                  location_id: parseInt(product.location_id?.toString()) || 0,
+                  subcategory_id: parseInt((product.subcategory_id || 0).toString()) || 0,
+                  location_id: parseInt((product.location_id || 0).toString()) || 0,
                   source_type: product.source_type as any,
                   product_formula_id: formula.id // Assign the newly created formula
                 };
@@ -761,21 +876,13 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                   setProductFormula(formula);
                 }
                 
-                Toast.show({
-                  type: 'success',
-                  text1: 'Success',
-                  text2: 'Formula created and assigned to product',
-                });
+                showToast('success', 'Success', 'Formula created and assigned to product');
               } else if (editingFormula) {
-                Toast.show({
-                  type: 'success',
-                  text1: 'Success',
-                  text2: 'Formula updated successfully',
-                });
+                showToast('success', 'Success', 'Formula updated successfully');
               }
               
               // Refresh formulas list
-            dispatch(fetchFormulas());
+              dispatch(fetchFormulas());
               
               // Only fetch formula by ID for editing scenarios
               if (editingFormula && product?.product_formula_id) {
@@ -784,17 +891,13 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                   setProductFormula(response.data);
                 } catch (fetchError) {
                   setProductFormula(null);
-            }
+                }
               }
               
-            onProductUpdated?.();
+              onProductUpdated?.();
             } catch (error: any) {
               console.error('Formula operation error:', error);
-              Toast.show({
-                type: 'error',
-                text1: 'Error',
-                text2: error.message || 'Failed to assign formula to product',
-              });
+              showToast('error', 'Error', error.message || 'Failed to assign formula to product');
             }
           }}
         />
@@ -1267,6 +1370,91 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   noFormulaSubtext: {
+    fontSize: 12,
+    color: '#9ca3af',
+    textAlign: 'center',
+  },
+  
+  // Supplier Information Styles
+  supplierCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  supplierHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  supplierHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  supplierHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    justifyContent: 'flex-end',
+  },
+  supplierTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  supplierDeleteButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    marginRight: 4,
+  },
+  supplierInfo: {
+    gap: 6,
+  },
+  supplierBusinessName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#059669',
+    marginBottom: 4,
+  },
+  supplierContact: {
+    fontSize: 14,
+    color: '#374151',
+  },
+  supplierEmail: {
+    fontSize: 14,
+    color: '#374151',
+  },
+  supplierPhone: {
+    fontSize: 14,
+    color: '#374151',
+  },
+  noSupplierState: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  noSupplierText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  noSupplierSubtext: {
     fontSize: 12,
     color: '#9ca3af',
     textAlign: 'center',
