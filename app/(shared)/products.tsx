@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, Search, Filter, X, CircleDollarSign, Package, ChevronUp } from 'lucide-react-native';
+import { Plus, Filter, X, Package, ChevronUp } from 'lucide-react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
@@ -181,10 +181,31 @@ export default function Products() {
     }
   }, [dispatch]);
 
-  const handleProductUpdated = React.useCallback(() => {
-    dispatch(fetchProducts({ page: 1, limit: 100 }));
-    dispatch(fetchInventoryBalance());
-  }, [dispatch]);
+  const handleProductUpdated = React.useCallback(async () => {
+    // Refresh the products list and inventory
+    const [productsResult] = await Promise.all([
+      dispatch(fetchProducts({ page: 1, limit: 100 })).unwrap(),
+      dispatch(fetchInventoryBalance())
+    ]);
+    
+    // If a product is currently selected in the modal, update it with fresh data
+    if (selectedProduct && selectedProduct.id && productsResult?.data) {
+      const updatedProduct = productsResult.data.find((p: Product) => p.id === selectedProduct.id);
+      
+      if (updatedProduct) {
+        // Calculate the current stock and total value for the updated product
+        const currentStock = getProductStock(updatedProduct.id);
+        const totalValue = getProductTotalValue(updatedProduct.id);
+        
+        // Update selectedProduct with the fresh data
+        setSelectedProduct({
+          ...updatedProduct,
+          current_stock: currentStock,
+          total_value: totalValue
+        });
+      }
+    }
+  }, [dispatch, selectedProduct, getProductStock, getProductTotalValue]);
 
   useEffect(() => {
     onRefresh();
@@ -201,29 +222,14 @@ export default function Products() {
       <TouchableOpacity 
         style={styles.productCard}
         onPress={() => {
-          // First set with basic info to show something immediately
-          setSelectedProduct({ ...item, current_stock: currentStock, total_value: totalValue });
+          const completeProductData = {
+            ...item,  // All basic product info from the list
+            current_stock: currentStock,
+            total_value: totalValue
+          };
           
-          // Then fetch complete product details to get fresh data
-          dispatch(fetchProductById(item.id))
-            .unwrap()
-            .then((response: any) => {
-              if (response.success && response.data) {
-                // Update with complete data including purchase_info
-                setSelectedProduct({
-                  ...response.data,
-                  current_stock: currentStock, 
-                  total_value: totalValue
-                });
-              }
-            })
-            .catch((error: any) => {
-              console.error('Failed to fetch product details:', error);
-            })
-            .finally(() => {
-              // Show modal after fetch attempt completes (success or error)
-              setShowProductDetails(true);
-            });
+          setSelectedProduct(completeProductData);
+          setShowProductDetails(true);
         }}
       >
         {/* Product Header - Title with stock status and category */}

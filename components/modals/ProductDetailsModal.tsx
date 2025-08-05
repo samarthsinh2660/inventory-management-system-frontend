@@ -30,7 +30,7 @@ import {
 } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
-import { updateProduct, deleteProduct, fetchProductById } from '../../store/slices/productsSlice';
+import { updateProduct, deleteProduct } from '../../store/slices/productsSlice';
 import { fetchFormulaById, fetchFormulas } from '../../store/slices/formulasSlice';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
@@ -54,7 +54,7 @@ import { Picker } from '@react-native-picker/picker';
 import { IfMaster } from '../IfMaster';
 import { CreateFormulaModal } from './CreateFormulaModal';
 import { ProductDetailsModalProps, ProductModalItem } from '@/types/general';
-import { handelProductEdit } from '@/types/product';
+import { handelProductEdit, ProductCategory, ProductSourceType } from '@/types/product';
 
 const validationSchema = Yup.object({
   name: Yup.string().required('Product name is required'),
@@ -89,22 +89,24 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
     if (visible && product) {
       setEditMode(false);
       setDetailedProduct(product as ProductModalItem);
-      
-      // Fetch formula if exists
-      if (product.product_formula_id) {
-        dispatch(fetchFormulaById(product.product_formula_id))
-          .unwrap()
-          .then((formulaResponse) => {
-            setProductFormula(formulaResponse.data);
-          })
-          .catch(() => {
-            setProductFormula(null);
-          });
-      } else {
-        setProductFormula(null);
-      }
     }
-  }, [visible, product?.id, dispatch]);
+  }, [visible, product]);
+
+  // Separate useEffect for formula fetching to avoid duplicate calls
+  useEffect(() => {
+    if (visible && product?.product_formula_id) {
+      dispatch(fetchFormulaById(product.product_formula_id))
+        .unwrap()
+        .then((formulaResponse) => {
+          setProductFormula(formulaResponse.data);
+        })
+        .catch(() => {
+          setProductFormula(null);
+        });
+    } else if (visible && !product?.product_formula_id) {
+      setProductFormula(null);
+    }
+  }, [visible, product?.product_formula_id, dispatch]);
 
   // Reset when modal closes
   useEffect(() => {
@@ -155,10 +157,8 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
               
               showToast('success', 'Success', 'Supplier information removed from product');
               
-              // Refresh product data from backend to get updated state
-              const updatedProduct = await dispatch(fetchProductById(product.id)).unwrap();
-              setDetailedProduct(updatedProduct.data);
-              
+              // After update, call the onProductUpdated callback to refresh the product in the parent
+              // This will ensure the list and this modal are in sync
               onProductUpdated?.();
             } catch (error: any) {
               showToast('error', 'Error', error.message || 'Failed to remove supplier information');
@@ -178,27 +178,31 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
   const handleEdit = async (values: handelProductEdit) => {
     try {
       setLoading(true);
-      const updateData = {
-        ...values,
-        price: parseFloat(values.price),
-        min_stock_threshold: parseInt(values.min_stock_threshold),
-        subcategory_id: parseInt(values.subcategory_id),
-        location_id: parseInt(values.location_id),
-        product_formula_id: values.product_formula_id === '0' ? null : parseInt(values.product_formula_id),
-        category: values.category as any,
-        source_type: values.source_type as any,
+      
+      const productData = {
+        name: values.name,
+        price: parseFloat(values.price) || undefined,
+        min_stock_threshold: parseInt(values.min_stock_threshold) || undefined,
+        unit: values.unit,
+        category: values.category as ProductCategory,
+        subcategory_id: parseInt(values.subcategory_id) || undefined,
+        location_id: parseInt(values.location_id) || undefined,
+        source_type: values.source_type as ProductSourceType,
+        product_formula_id: values.product_formula_id === '0' ? undefined : parseInt(values.product_formula_id) || undefined,
+        // Use detailedProduct which has the latest data instead of original product prop
+        purchase_info_id: (detailedProduct as any)?.purchase_info_id || undefined
       };
-
-             await dispatch(updateProduct({
-         id: product?.id!,
-         data: updateData
-       })).unwrap();
+      
+      await dispatch(updateProduct({
+        id: detailedProduct?.id!,
+        data: productData
+      })).unwrap();
 
       showToast('success', 'Success', 'Product updated successfully');
-
       setEditMode(false);
       onProductUpdated?.();
     } catch (error: any) {
+      console.error('Error updating product:', error);
       showToast('error', 'Error', error.message || 'Failed to update product');
     } finally {
       setLoading(false);
@@ -297,13 +301,13 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                 <View style={styles.detailCard}>
                   <CircleDollarSign size={24} color="#0ea5e9" />
                   <Text style={styles.detailLabel}>Total Value</Text>
-                                      <Text style={styles.detailValue}>₹{((product as any).total_value || 0).toFixed(2)}</Text>
+                  <Text style={styles.detailValue}>₹{((product as any).total_value || 0).toFixed(2)}</Text>
                 </View>
 
                 <View style={styles.detailCard}>
                   <TrendingUp size={24} color="#16a34a" />
                   <Text style={styles.detailLabel}>Current Stock</Text>
-                                      <Text style={styles.detailValue}>{(product as any).current_stock || 0} {product.unit}</Text>
+                  <Text style={styles.detailValue}>{(product as any).current_stock || 0} {product.unit}</Text>
                 </View>
 
                 <View style={styles.detailCard}>
@@ -379,9 +383,10 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                                       const { deleteFormula } = await import('../../store/slices/formulasSlice');
                                       await dispatch(deleteFormula(productFormula.id)).unwrap();
                                       
-                                      // Refresh product data from backend to get updated state
-                                      const updatedProduct = await dispatch(fetchProductById(product.id)).unwrap();
-                                      setDetailedProduct(updatedProduct.data);
+                                      // Simply update the detailedProduct with the product that has no formula
+                                      // Use undefined instead of null for formula_name to match the type
+                                      const updatedProduct = {...product, product_formula_id: null, formula_name: undefined};
+                                      setDetailedProduct(updatedProduct as ProductModalItem);
                                       setProductFormula(null);
                                       
                                       showToast('success', 'Success', 'Formula deleted successfully');
@@ -548,20 +553,21 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
           ) : (
             <Formik
               initialValues={{
-                name: product.name || '',
-                price: product.price?.toString() || '',
-                min_stock_threshold: product.min_stock_threshold?.toString() || '',
-                unit: product.unit || '',
-                category: product.category || 'raw',
-                subcategory_id: product.subcategory_id?.toString() || '0',
-                location_id: product.location_id?.toString() || '0',
-                source_type: product.source_type || 'trading',
-                product_formula_id: product.product_formula_id?.toString() || '0',
+                name: detailedProduct?.name || '',
+                price: detailedProduct?.price?.toString() || '',
+                min_stock_threshold: detailedProduct?.min_stock_threshold?.toString() || '',
+                unit: detailedProduct?.unit || '',
+                category: detailedProduct?.category || 'raw',
+                subcategory_id: detailedProduct?.subcategory_id?.toString() || '0',
+                location_id: detailedProduct?.location_id?.toString() || '0',
+                source_type: detailedProduct?.source_type || 'trading',
+                product_formula_id: detailedProduct?.product_formula_id?.toString() || '0',
               }}
+              enableReinitialize={true}
               validationSchema={validationSchema}
               onSubmit={handleEdit}
             >
-              {({ handleChange, handleSubmit, values, errors, touched, setFieldValue }) => (
+              {({ handleChange, handleSubmit, values, errors, touched, setFieldValue, isValid, dirty }) => (
                 <View style={styles.formContainer}>
                   <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Basic Information</Text>
@@ -763,53 +769,40 @@ export default function ProductDetailsModal({ visible, onClose, product, onProdu
                       )}
                     </View>
                   </View>
+                  
+                  {/* Debug information */}
+                  <Text style={{ display: 'none' }}>{JSON.stringify(values)}</Text>
+                  
+                  {/* Form Buttons */}
+                  <View style={styles.formButtonsContainer}>
+                    <View style={styles.formButtons}>
+                      <Button
+                        mode="outlined"
+                        onPress={() => {
+                          setEditMode(false);
+                        }}
+                        style={styles.cancelButton}
+                        disabled={loading}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        mode="contained"
+                        onPress={() => {
+                          handleSubmit();
+                        }}
+                        style={styles.saveButton}
+                        loading={loading}
+                      >
+                        Save Changes
+                      </Button>
+                    </View>
+                  </View>
                 </View>
               )}
             </Formik>
           )}
         </ScrollView>
-
-        {/* Form Buttons - Fixed at bottom when editing */}
-        {editMode && (
-          <View style={styles.formButtonsContainer}>
-            <Formik
-              initialValues={{
-                name: product.name || '',
-                price: product.price?.toString() || '',
-                min_stock_threshold: product.min_stock_threshold?.toString() || '',
-                unit: product.unit || '',
-                category: product.category || 'raw',
-                subcategory_id: product.subcategory_id?.toString() || '0',
-                location_id: product.location_id?.toString() || '0',
-                source_type: product.source_type || 'trading',
-                product_formula_id: product.product_formula_id?.toString() || '0',
-              }}
-              validationSchema={validationSchema}
-              onSubmit={handleEdit}
-            >
-              {({ handleSubmit }) => (
-                <View style={styles.formButtons}>
-                  <Button
-                    mode="outlined"
-                    onPress={() => setEditMode(false)}
-                    style={styles.cancelButton}
-                    disabled={loading}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    mode="contained"
-                    onPress={() => handleSubmit()}
-                    style={styles.saveButton}
-                    loading={loading}
-                  >
-                    Save Changes
-                  </Button>
-                </View>
-              )}
-            </Formik>
-          </View>
-        )}
 
         {/* Action Buttons - Master Only */}
         {isMaster && !editMode && (

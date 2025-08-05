@@ -60,10 +60,22 @@ export default function Statistics() {
   const locations = useAppSelector(state => state.locations.list);
   const subcategories = useAppSelector(state => state.subcategories.list);
   const formulas = useAppSelector(state => state.formulas.list);
+  const [expandedSection, setExpandedSection] = useState(new Set<string>());
   
   const [refreshing, setRefreshing] = React.useState(false);
 
   const isMaster = user?.role === UserRole.MASTER;
+
+  //section expand toggle function
+  const toggleSection = (sectionName: string) => {
+    const newExpanded = new Set(expandedSection);
+    if (newExpanded.has(sectionName)) {
+      newExpanded.delete(sectionName);
+    } else {
+      newExpanded.add(sectionName);
+    }
+    setExpandedSection(newExpanded);
+  };
 
   // Helper function calculations using inventory balance
   const unresolvedAlertsCount = notifications.filter(notification => !notification.is_read).length;
@@ -292,9 +304,16 @@ export default function Statistics() {
 
         {/* Inventory Overview Section */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+          <TouchableOpacity 
+            style={styles.sectionHeaderClickable}
+            onPress={() => toggleSection('inventory')}
+          >
             <Text style={styles.sectionTitle}>Inventory Overview</Text>
-          </View>
+            <Text style={styles.chevron}>
+      {expandedSection.has('inventory') ? '▲' : '▼'}
+    </Text>
+  </TouchableOpacity>
+  {expandedSection.has('inventory') && (
           <View style={styles.statsGrid}>
             <StatCard
               title="Total Products"
@@ -338,13 +357,21 @@ export default function Statistics() {
               color="#8b5cf6"
             />
           </View>
+          )}
         </View>
 
         {/* Inventory Movements Section */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+          <TouchableOpacity 
+            style={styles.sectionHeaderClickable}
+            onPress={() => toggleSection('inventoryMovements')}
+          >
             <Text style={styles.sectionTitle}>Inventory Movements</Text>
-          </View>
+            <Text style={styles.chevron}>
+              {expandedSection.has('inventoryMovements') ? '▲' : '▼'}
+            </Text>
+          </TouchableOpacity>
+          {expandedSection.has('inventoryMovements') && (
           <View style={styles.statsGrid}>
             <StatCard
               title="Today's Entries"
@@ -390,14 +417,22 @@ export default function Statistics() {
               subtitle="Daily rate"
             />
           </View>
+          )}
         </View>
 
         {/* Category Analysis Section - Master Only */}
         {isMaster && categoryStats.length > 0 && (
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
+            <TouchableOpacity 
+              style={styles.sectionHeaderClickable}
+              onPress={() => toggleSection('categoryAnalysis')}
+            >
               <Text style={styles.sectionTitle}>Category Analysis</Text>
-            </View>
+              <Text style={styles.chevron}>
+                {expandedSection.has('categoryAnalysis') ? '▲' : '▼'}
+              </Text>
+            </TouchableOpacity>
+            {expandedSection.has('categoryAnalysis') && (
             <View style={styles.statsGrid}>
               {categoryStats.slice(0, 6).map((category, index) => (
                 <StatCard
@@ -410,6 +445,7 @@ export default function Statistics() {
                 />
               ))}
             </View>
+          )}
           </View>
         )}
 
@@ -417,9 +453,16 @@ export default function Statistics() {
           <>
             {/* User & System Activity Section - Master Only */}
             <View style={styles.section}>
-              <View style={styles.sectionHeader}>
+              <TouchableOpacity 
+                style={styles.sectionHeaderClickable}
+                onPress={() => toggleSection('userActivity')}
+              >
                 <Text style={styles.sectionTitle}>User & System Activity</Text>
-              </View>
+                <Text style={styles.chevron}>
+                  {expandedSection.has('userActivity') ? '▲' : '▼'}
+                </Text>
+              </TouchableOpacity>
+              {expandedSection.has('userActivity') && (
               <View style={styles.statsGrid}>
                 <StatCard
                   title="Master Users"
@@ -464,14 +507,22 @@ export default function Statistics() {
                   subtitle="All systems operational"
                 />
               </View>
-            </View>
+            )}
+          </View>
 
             {/* Location Distribution Section - Master Only */}
             {locationStats.length > 0 && (
               <View style={styles.section}>
-                <View style={styles.sectionHeader}>
+                <TouchableOpacity 
+                  style={styles.sectionHeaderClickable}
+                  onPress={() => toggleSection('locationDistribution')}
+                >
                   <Text style={styles.sectionTitle}>Location Distribution</Text>
-                </View>
+                  <Text style={styles.chevron}>
+                    {expandedSection.has('locationDistribution') ? '▲' : '▼'}
+                  </Text>
+                </TouchableOpacity>
+                {expandedSection.has('locationDistribution') && (
                 <View style={styles.statsGrid}>
                   {locationStats.slice(0, 6).map((location, index) => (
                     <StatCard
@@ -484,14 +535,22 @@ export default function Statistics() {
                     />
                   ))}
                 </View>
-              </View>
+              )}
+            </View>
             )}
 
             {/* Alert Summary Section - Master Only */}
             <View style={styles.section}>
-              <View style={styles.sectionHeader}>
+              <TouchableOpacity 
+                style={styles.sectionHeaderClickable}
+                onPress={() => toggleSection('alertSummary')}
+              >
                 <Text style={styles.sectionTitle}>Alert Summary</Text>
-              </View>
+                <Text style={styles.chevron}>
+                  {expandedSection.has('alertSummary') ? '▲' : '▼'}
+                </Text>
+              </TouchableOpacity>
+              {expandedSection.has('alertSummary') && (
               <View style={styles.statsGrid}>
                 <StatCard
                   title="Unresolved Alerts"
@@ -523,7 +582,8 @@ export default function Statistics() {
                   subtitle="Monitoring enabled"
                 />
               </View>
-            </View>
+            )}
+          </View>
           </>
         )}
 
@@ -535,6 +595,18 @@ export default function Statistics() {
 }
 
 const styles = StyleSheet.create({
+  sectionHeaderClickable: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+  },
+  chevron: {
+    fontSize: 18,
+    color: '#6b7280',
+    fontWeight: 'bold',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',

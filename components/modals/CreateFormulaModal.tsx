@@ -310,10 +310,12 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
 
               <Text style={styles.sectionTitle}>Component</Text>
 
+              {/* Component Section with its own scrolling */}
               <FieldArray name="components">
                 {({ push, remove }) => (
                   <View>
-                    {values.components.map((component, index: number) => (
+                    <ScrollView style={styles.componentsScrollView} nestedScrollEnabled>
+                      {values.components.map((component, index: number) => (
                       <View key={index} style={styles.componentRow}>
                         <View style={styles.productColumn}>
                           <Text style={styles.label}>Product</Text>
@@ -403,6 +405,7 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
                         </TouchableOpacity>
                       </View>
                     ))}
+                    </ScrollView>
 
                     <TouchableOpacity
                       onPress={() => push({ component_id: 0, quantity: 0 })}
@@ -460,6 +463,14 @@ const styles = StyleSheet.create({
   },
   form: {
     maxHeight: 500,
+  },
+  componentsScrollView: {
+    maxHeight: 250,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 12,
   },
   input: {
     backgroundColor: 'white',
