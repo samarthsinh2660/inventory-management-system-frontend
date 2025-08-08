@@ -213,4 +213,28 @@ export interface EditProfileFormProps {
   onSave: (data: ProfileFormData) => void;
   onCancel: () => void;
   loading?: boolean;
+}
+
+// Inventory Filters Modal Types
+export interface InventoryFiltersState {
+  search: string;
+  entry_type: string;
+  user_id: number;
+  location_id: number;
+  reference_id: string;
+  product_id: number;
+  category: string;
+  subcategory_id: number;
+  date_from: string;
+  date_to: string;
+  days: number;
+}
+
+export interface InventoryFiltersModalProps extends BaseModalProps {
+  filters: InventoryFiltersState;
+  onApplyFilters: (filters: InventoryFiltersState) => void;
+  subcategories: SubcategoryModalItem[];
+  locations: LocationModalItem[];
+  users: UserModalItem[];
+  products: ProductModalItem[];
 } 

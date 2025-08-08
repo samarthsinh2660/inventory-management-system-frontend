@@ -22,6 +22,12 @@ export default function AuditLogs() {
   const [refreshing, setRefreshing] = useState(false);
   const [showMyLogsOnly, setShowMyLogsOnly] = useState(false);
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
+  // Track which logs have their details expanded
+  const [expandedIds, setExpandedIds] = useState<Record<number, boolean>>({});
+
+  const toggleExpanded = (id: number) => {
+    setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   const isMaster = user?.role === UserRole.MASTER;
 
@@ -112,23 +118,40 @@ export default function AuditLogs() {
   // Format object values into readable text
   const formatObjectValues = (values: any) => {
     if (!values || typeof values !== 'object') return null;
-    
-    return Object.entries(values).map(([key, value]) => {
+
+    // Separate into non-ID fields and ID fields for clearer ordering
+    const entries = Object.entries(values).filter(([key, value]) => {
       // Skip internal fields for cleaner display
-      if (key === 'id' || key === 'created_at' || key === 'updated_at') return null;
-      
-      const formattedValue = value === null ? 'null' : 
-                           value === undefined ? 'undefined' : 
-                           typeof value === 'object' ? JSON.stringify(value, null, 2) : 
-                           String(value);
-      
+      if (key === 'created_at' || key === 'updated_at') return false;
+      // Skip noisy empty/zero fields
+      if (value === '' || value === 0 || value === null || value === undefined) return false;
+      return true;
+    });
+
+    const isIdKey = (k: string) => k === 'id' || k.endsWith('_id');
+
+    const fieldEntries = entries.filter(([k]) => !isIdKey(k));
+    const idEntries = entries.filter(([k]) => isIdKey(k));
+
+    const renderRow = (key: string, value: any) => {
+      const formattedValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
       return (
         <View style={styles.valueRow} key={key}>
           <Text style={styles.valueKey}>{key}:</Text>
           <Text style={styles.valueText}>{formattedValue}</Text>
         </View>
       );
-    }).filter(Boolean); // Filter out null values
+    };
+
+    const rows: React.ReactNode[] = [];
+    fieldEntries.forEach(([k, v]) => rows.push(renderRow(k, v)));
+    if (idEntries.length > 0) {
+      rows.push(
+        <Text style={styles.valuesSubTitle} key="ids__title">IDs</Text>
+      );
+      idEntries.forEach(([k, v]) => rows.push(renderRow(k, v)));
+    }
+    return rows;
   };
 
   const formatTimestamp = (timestamp: string) => {
@@ -176,10 +199,13 @@ export default function AuditLogs() {
                        (item.new_data?.product_id ? `Product #${item.new_data.product_id}` : '');
     
     // Get entry quantity for display
-    const quantity = item.new_data?.quantity !== undefined ? `${item.new_data.quantity}` : '';
+    const rawQty = item.new_data?.quantity;
+    const quantity = rawQty !== undefined && rawQty !== null ? Number(rawQty) : undefined;
+    // Normalize is_flag to strict boolean to avoid rendering numeric 0
+    const isFlagged = Boolean(item.is_flag);
 
     return (
-      <View style={[styles.logCard, item.is_flag && styles.flaggedLogCard]}>
+      <View style={[styles.logCard, isFlagged && styles.flaggedLogCard]}>
         <View style={styles.logHeader}>
           <View style={styles.logHeaderLeft}>
             <View style={[styles.actionBadge, { backgroundColor: `${getActionColor(item.action)}15` }]}>
@@ -197,7 +223,7 @@ export default function AuditLogs() {
               </View>
             )}
 
-            {item.is_flag && (
+            {isFlagged && (
               <View style={styles.flagIndicator}>
                 <Flag size={12} color="#dc2626" fill="#dc2626" />
                 <Text style={styles.flagIndicatorText}>Flagged</Text>
@@ -214,7 +240,7 @@ export default function AuditLogs() {
             <Text style={styles.productName} numberOfLines={1} ellipsizeMode="tail">
               {productName || 'Unknown Product'}
             </Text>
-            {quantity && (
+            {typeof quantity === 'number' && quantity > 0 && (
               <Text style={styles.quantityBadge}>
                 {quantity} {item.new_data?.unit || 'units'}
               </Text>
@@ -235,36 +261,50 @@ export default function AuditLogs() {
         </View>
 
         {(item.old_data || item.new_data) && (
-          <View style={styles.valuesContainer}>
-            {item.old_data && (
-              <View style={styles.valuesSection}>
-                <Text style={styles.valuesTitle}>Previous Data:</Text>
-                <View style={styles.valuesList}>
-                  {formatObjectValues(item.old_data)}
-                </View>
+          <>
+            <View style={{ marginBottom: 8 }}>
+              <TouchableOpacity onPress={() => toggleExpanded(item.id)} style={styles.toggleDetailsButton}>
+                <Text style={styles.toggleDetailsText}>{expandedIds[item.id] ? 'Hide details' : 'Show details'}</Text>
+                <ChevronLeft 
+                  size={14} 
+                  color={expandedIds[item.id] ? '#2563eb' : '#6b7280'} 
+                  style={{ transform: [{ rotate: expandedIds[item.id] ? '-90deg' : '90deg' }] }} 
+                />
+              </TouchableOpacity>
+            </View>
+            {expandedIds[item.id] && (
+              <View style={styles.valuesContainer}>
+                {item.old_data && (
+                  <View style={styles.valuesSection}>
+                    <Text style={styles.valuesTitle}>Previous Data:</Text>
+                    <View style={styles.valuesList}>
+                      {formatObjectValues(item.old_data)}
+                    </View>
+                  </View>
+                )}
+                {item.new_data && Object.keys(item.new_data).length > 0 && (
+                  <View style={styles.valuesSection}>
+                    <Text style={styles.valuesTitle}>Details:</Text>
+                    <View style={styles.valuesList}>
+                      {formatObjectValues(item.new_data)}
+                    </View>
+                  </View>
+                )}
               </View>
             )}
-            {item.new_data && Object.keys(item.new_data).length > 0 && (
-              <View style={styles.valuesSection}>
-                <Text style={styles.valuesTitle}>Details:</Text>
-                <View style={styles.valuesList}>
-                  {formatObjectValues(item.new_data)}
-                </View>
-              </View>
-            )}
-          </View>
+          </>
         )}
 
         <View style={styles.actionButtons}>
           {isMaster && (
             <TouchableOpacity
-              style={[styles.flagButton, item.is_flag && styles.flaggedButton]}
-              onPress={() => handleFlagToggle(item.id, item.is_flag)}
+              style={[styles.flagButton, isFlagged && styles.flaggedButton]}
+              onPress={() => handleFlagToggle(item.id, isFlagged)}
               disabled={loading}
             >
-              <Flag size={16} color={item.is_flag ? "#dc2626" : "#d97706"} fill={item.is_flag ? "#dc2626" : "none"} />
-              <Text style={[styles.flagButtonText, item.is_flag && styles.flaggedButtonText]}>
-                {item.is_flag ? 'Unflag' : 'Flag'}
+              <Flag size={16} color={isFlagged ? "#dc2626" : "#d97706"} fill={isFlagged ? "#dc2626" : "none"} />
+              <Text style={[styles.flagButtonText, isFlagged && styles.flaggedButtonText]}>
+                {isFlagged ? 'Unflag' : 'Flag'}
               </Text>
             </TouchableOpacity>
           )}
@@ -566,12 +606,37 @@ const styles = StyleSheet.create({
     color: '#374151',
     marginBottom: 4,
   },
+  valuesSubTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6b7280',
+    marginTop: 4,
+    marginBottom: 4,
+  },
   valuesList: {
     backgroundColor: 'white',
     padding: 8,
     borderRadius: 4,
     borderWidth: 1,
     borderColor: '#e5e7eb',
+  },
+  toggleDetailsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  toggleDetailsText: {
+    color: '#2563eb',
+    fontWeight: '600',
+    fontSize: 12,
+    marginRight: 2,
   },
   valueRow: {
     flexDirection: 'row',

@@ -41,13 +41,11 @@ export interface InventoryEntry {
     meta?: {
       page: number;
       limit: number;
-      total: number;
-      pages: number;
     };
     timestamp?: string;
-  }
-  
-  export interface InventoryState {
+}
+
+export interface InventoryState {
     entries: InventoryEntry[];
     userEntries: InventoryEntry[];
     balance: InventoryBalance[];
@@ -55,17 +53,65 @@ export interface InventoryEntry {
     loading: boolean;
     error: string | null;
     meta: {
-      page: number;
-      limit: number;
-      total: number;
-      pages: number;
+        page: number;
+        limit: number;
+        total: number;
+        pages: number;
+        filters_applied?: Partial<InventoryEntryFilters>;
     };
     balanceMeta: {
-      totalProducts: number;
+        totalProducts: number;
     };
-  }
+    // Filter state
+    filters: InventoryEntryFilters;
+}
 
-  // Fetch all inventory entries with optional pagination
+// Inventory Entry Filters interface for the new filtering API
+export interface InventoryEntryFilters {
+    // Search filters
+    search?: string;
+    
+    // Entry type filters
+    entry_type?: InventoryEntryType;
+    
+    // User/Location filters
+    user_id?: number;
+    location_id?: number;
+    
+    // Reference ID exact match
+    reference_id?: string;
+    
+    // Product hierarchy filters
+    product_id?: number;
+    category?: string;
+    subcategory_id?: number;
+    
+    // Timestamp filters
+    date_from?: string;
+    date_to?: string;
+    days?: number;
+    
+    // Pagination parameters
+    page?: number;
+    limit?: number;
+}
+
+// Response interface for filtered inventory entries
+export interface FilteredInventoryEntriesResponse {
+    success: boolean;
+    message: string;
+    data: InventoryEntry[];
+    meta: {
+        page: number;
+        limit: number;
+        total: number;
+        pages: number;
+        filters_applied: Partial<InventoryEntryFilters>;
+    };
+    timestamp: string;
+}
+
+// Fetch all inventory entries with optional pagination (legacy)
 export interface FetchInventoryParams {
     page?: number;
     limit?: number;
@@ -73,12 +119,12 @@ export interface FetchInventoryParams {
     entry_type?: InventoryEntryType;
     start_date?: string;
     end_date?: string;
-  }
+}
 
-  // Fetch user-specific inventory entries with optional pagination
+// Fetch user-specific inventory entries with optional pagination
 export interface FetchUserEntriesParams {
-  page?: number;
-  limit?: number;
+    page?: number;
+    limit?: number;
 }
 
 

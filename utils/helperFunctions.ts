@@ -2,6 +2,7 @@
 import { InventoryEntry, InventoryBalance } from '@/types/inventory';
 import { User } from '@/types/user';
 import { Product } from '@/types/product';
+import { useEffect, useState, useRef } from 'react';
 
 export const getUsernameById = (userId: string | number, users: User[]) => {
   const foundUser = users.find(u => u.id === userId);
@@ -146,4 +147,21 @@ export const usePagination = (
     goToPrevPage,
     goToPage
   };
+};
+
+// Debounce hook for search functionality
+export const useDebounce = <T>(value: T, delay: number): T => {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
 };

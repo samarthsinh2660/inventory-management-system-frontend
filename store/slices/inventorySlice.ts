@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { API_URL } from '../../utils/constant';
-import { ApiResponse, InventoryEntry, InventoryBalance, InventoryState, FetchInventoryParams, FetchUserEntriesParams, CreateInventoryEntryData, UpdateInventoryEntryData } from '@/types/inventory';
+import { ApiResponse, InventoryEntry, InventoryBalance, InventoryState, FetchInventoryParams, FetchUserEntriesParams, CreateInventoryEntryData, UpdateInventoryEntryData, InventoryEntryFilters, FilteredInventoryEntriesResponse } from '@/types/inventory';
 import { getAuthHeader } from '@/utils/authHelper';
 
 const initialState: InventoryState = {
@@ -15,13 +15,70 @@ const initialState: InventoryState = {
     page: 1,
     limit: 10,
     total: 0,
-    pages: 0
+    pages: 0,
+    filters_applied: {}
   },
   balanceMeta: {
     totalProducts: 0
+  },
+  filters: {
+    search: '',
+    entry_type: undefined,
+    user_id: undefined,
+    location_id: undefined,
+    reference_id: '',
+    product_id: undefined,
+    category: '',
+    subcategory_id: undefined,
+    date_from: '',
+    date_to: '',
+    days: undefined,
+    page: 1,
+    limit: 10
   }
 };
 
+
+// New search/filter thunk for inventory entries
+export const searchInventoryEntries = createAsyncThunk(
+  'inventory/searchEntries',
+  async (filters: InventoryEntryFilters, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as { auth: { accessToken: string | null } };
+      const token = state.auth.accessToken;
+      
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
+      const queryParams = new URLSearchParams();
+      
+      // Add all filter parameters to query string
+      if (filters.search) queryParams.append('search', filters.search);
+      if (filters.entry_type) queryParams.append('entry_type', filters.entry_type);
+      if (filters.user_id) queryParams.append('user_id', filters.user_id.toString());
+      if (filters.location_id) queryParams.append('location_id', filters.location_id.toString());
+      if (filters.reference_id) queryParams.append('reference_id', filters.reference_id);
+      if (filters.product_id) queryParams.append('product_id', filters.product_id.toString());
+      if (filters.category) queryParams.append('category', filters.category);
+      if (filters.subcategory_id) queryParams.append('subcategory_id', filters.subcategory_id.toString());
+      if (filters.date_from) queryParams.append('date_from', filters.date_from);
+      if (filters.date_to) queryParams.append('date_to', filters.date_to);
+      if (filters.days) queryParams.append('days', filters.days.toString());
+      if (filters.page) queryParams.append('page', filters.page.toString());
+      if (filters.limit) queryParams.append('limit', filters.limit.toString());
+
+      const query = queryParams.toString() ? `?${queryParams.toString()}` : '';
+      const response = await axios.get<FilteredInventoryEntriesResponse>(`${API_URL}/inventory${query}`, getAuthHeader(token));
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        return rejectWithValue(error.response.data.message || 'Failed to search inventory entries');
+      }
+      return rejectWithValue('Failed to search inventory entries');
+    }
+  }
+);
 
 export const fetchInventoryEntries = createAsyncThunk(
   'inventory/fetchEntries',
@@ -213,10 +270,54 @@ const inventorySlice = createSlice({
     clearSelectedEntry: (state) => {
       state.selected = null;
     },
+    // Filter management actions
+    setFilters: (state, action) => {
+      state.filters = { ...state.filters, ...action.payload };
+    },
+    clearFilters: (state) => {
+      state.filters = {
+        search: '',
+        entry_type: undefined,
+        user_id: undefined,
+        location_id: undefined,
+        reference_id: '',
+        product_id: undefined,
+        category: '',
+        subcategory_id: undefined,
+        date_from: '',
+        date_to: '',
+        days: undefined,
+        page: 1,
+        limit: 10
+      };
+    },
+    setSearchTerm: (state, action) => {
+      state.filters.search = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder
-      // Fetch all inventory entries
+      // Search inventory entries
+      .addCase(searchInventoryEntries.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(searchInventoryEntries.fulfilled, (state, action) => {
+        state.loading = false;
+        state.entries = action.payload.data;
+        if (action.payload.meta) {
+          state.meta = {
+            ...state.meta,
+            ...action.payload.meta
+          };
+        }
+      })
+      .addCase(searchInventoryEntries.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string || 'Failed to search inventory entries';
+      })
+
+      // Fetch inventory entries
       .addCase(fetchInventoryEntries.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -225,7 +326,10 @@ const inventorySlice = createSlice({
         state.loading = false;
         state.entries = action.payload.data;
         if (action.payload.meta) {
-          state.meta = action.payload.meta;
+          state.meta = {
+            ...state.meta,
+            ...action.payload.meta
+          };
         }
       })
       .addCase(fetchInventoryEntries.rejected, (state, action) => {
@@ -271,7 +375,10 @@ const inventorySlice = createSlice({
         state.loading = false;
         state.userEntries = action.payload.data?.entries || [];
         if (action.payload.meta) {
-          state.meta = action.payload.meta;
+          state.meta = {
+            ...state.meta,
+            ...action.payload.meta
+          };
         }
       })
       .addCase(fetchUserEntries.rejected, (state, action) => {
@@ -334,5 +441,5 @@ const inventorySlice = createSlice({
   },
 });
 
-export const { clearError, setSelectedEntry, clearSelectedEntry } = inventorySlice.actions;
+export const { clearError, setSelectedEntry, clearSelectedEntry, setFilters, clearFilters, setSearchTerm } = inventorySlice.actions;
 export default inventorySlice.reducer;

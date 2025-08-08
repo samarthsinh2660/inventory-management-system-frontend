@@ -1,25 +1,29 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { TextInput, Button} from 'react-native-paper';
 import { Picker } from '@react-native-picker/picker';
-import { Package, Plus, TrendingUp, TrendingDown, ChartBar as BarChart3, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Package, Plus, TrendingUp, TrendingDown, ChartBar as BarChart3, ChevronLeft, ChevronRight, Filter, X, Search, ChevronUp } from 'lucide-react-native';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
-import { createInventoryEntry, fetchInventoryBalance, fetchInventoryEntries, fetchUserEntries } from '../../store/slices/inventorySlice';
+import { createInventoryEntry, fetchInventoryBalance, fetchInventoryEntries, fetchUserEntries, searchInventoryEntries, setFilters, clearFilters, setSearchTerm } from '../../store/slices/inventorySlice';
 import { fetchProducts } from '../../store/slices/productsSlice';
 import { fetchLocations } from '../../store/slices/locationsSlice';
 import { fetchSubcategories } from '../../store/slices/subcategoriesSlice';
+import { fetchUsers } from '../../store/slices/usersSlice';
 import Toast from 'react-native-toast-message';
 import {
   formatEntryType,
   getEntryTypeColor,
   getEntryTypeBackgroundColor,
-  usePagination
+  usePagination,
+  useDebounce
 } from '../../utils/helperFunctions';
 import InventoryEntryDetailsModal from '../../components/modals/InventoryEntryDetailsModal';
+import { InventoryFiltersModal } from '../../components/inventory/InventoryFiltersModal';
+import { CustomSearchBar } from '../../components/CustomSearchBar';
 import { UserRole } from '@/types/user';
 import { 
   InventoryEntryType, 
@@ -50,7 +54,8 @@ export default function InventoryScreen() {
     userEntries = [], 
     loading, 
     meta = { total: 0, pages: 0 }, 
-    balance = [] 
+    balance = [],
+    filters
   } = useAppSelector(state => state.inventory);
   const users = useAppSelector(state => state.users.list || []);
   const user = useAppSelector(state => state.auth.user);
@@ -61,6 +66,10 @@ export default function InventoryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<InventoryEntry | null>(null);
   const [showEntryDetails, setShowEntryDetails] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+  const flatListRef = useRef<FlatList<InventoryEntry>>(null);
   
   // Product filter states
   const [productFilters, setProductFilters] = useState({
@@ -69,10 +78,21 @@ export default function InventoryScreen() {
     subcategoryId: 0,
   });
 
-  const itemsPerPage = 10;
+  const itemsPerPage = 100;
 
   const isMaster = user?.role === UserRole.MASTER;
   const entries = viewMode === 'all' ? allEntries : userEntries;
+  
+  // Debounced search term
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  
+  // Calculate active filters count
+  const activeFiltersCount = Object.entries(filters).filter(([key, value]) => {
+    if (key === 'page' || key === 'limit') return false;
+    if (typeof value === 'string') return value !== '';
+    if (typeof value === 'number') return value !== undefined && value > 0;
+    return value !== undefined && value !== null;
+  }).length;
  
   
   const pagination = usePagination(
@@ -81,6 +101,48 @@ export default function InventoryScreen() {
     itemsPerPage, 
     setCurrentPage
   );
+
+  // Search functionality
+  const performSearch = useCallback(() => {
+    const searchFilters = {
+      ...filters,
+      search: debouncedSearchTerm,
+      page: 1, // Reset to first page when searching
+    };
+    dispatch(searchInventoryEntries(searchFilters));
+  }, [dispatch, filters, debouncedSearchTerm]);
+
+  const handleSearchChange = (text: string) => {
+    setSearchTerm(text);
+  };
+
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    dispatch(clearFilters());
+    setCurrentPage(1);
+    // Reload entries with cleared filters
+    setTimeout(() => {
+      loadEntries();
+    }, 100);
+  };
+
+  const handleApplyFilters = (newFilters: any) => {
+    dispatch(setFilters(newFilters));
+    setCurrentPage(1);
+    // Perform search with new filters
+    const searchFilters = {
+      ...newFilters,
+      search: searchTerm,
+      page: 1,
+    };
+    dispatch(searchInventoryEntries(searchFilters));
+  };
+
+  const scrollToTop = () => {
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+  };
+
+
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -96,34 +158,31 @@ export default function InventoryScreen() {
     ]).finally(() => {
       setRefreshing(false);
     });
-  }, [dispatch, user]);
+  }, [dispatch, user, itemsPerPage]);
 
   useEffect(() => {
-    // Initial data load
-    dispatch(fetchProducts({ page: 1, limit: 100 })); // Fetch more products for filtering
+    // Initial data load - only once on mount
+    dispatch(fetchProducts({ page: 1, limit: 100 }));
     dispatch(fetchLocations());
     dispatch(fetchSubcategories());
+    dispatch(fetchUsers());
     dispatch(fetchInventoryBalance());
-    loadEntries();
     
-    // Also load user entries on initial mount so they're available for toggle
-    if (user) {
-      dispatch(fetchUserEntries({ page: 1, limit: itemsPerPage }));
+    // Load initial entries based on viewMode
+    const params = { page: 1, limit: itemsPerPage };
+    if (viewMode === 'all') {
+      dispatch(fetchInventoryEntries(params));
+    } else {
+      dispatch(fetchUserEntries(params));
     }
-    
-    // Set up refresh interval for real-time updates (every 60 seconds)
-    const intervalId = setInterval(() => {
-      dispatch(fetchInventoryBalance());
-      loadEntries();
-    }, 60000);
-    
-    // Clean up interval on component unmount
-    return () => clearInterval(intervalId);
-  }, [dispatch]);
+  }, [dispatch, itemsPerPage]);
 
+  // Only reload entries when viewMode changes, not on every currentPage change
   useEffect(() => {
-    loadEntries();
-  }, [viewMode, currentPage]);
+    if (currentPage === 1) { // Only reload on viewMode change, not pagination
+      loadEntries();
+    }
+  }, [viewMode]);
 
   useEffect(() => {
     if (selectedProductId > 0) {
@@ -131,6 +190,18 @@ export default function InventoryScreen() {
       // No need for additional stock fetching
     }
   }, [selectedProductId, dispatch]);
+
+  // Effect for debounced search
+  useEffect(() => {
+    if (debouncedSearchTerm !== undefined) {
+      const searchFilters = {
+        ...filters,
+        search: debouncedSearchTerm,
+        page: 1, // Reset to first page when searching
+      };
+      dispatch(searchInventoryEntries(searchFilters));
+    }
+  }, [debouncedSearchTerm, filters, dispatch]);
 
 
 
@@ -144,6 +215,24 @@ export default function InventoryScreen() {
       dispatch(fetchUserEntries(params));
     }
   };
+
+  // Function to load more entries for infinite scroll
+  const loadMoreEntries = () => {
+    const nextPage = currentPage + 1;
+    const params = { page: nextPage, limit: itemsPerPage };
+    
+    if (viewMode === 'all') {
+      dispatch(fetchInventoryEntries(params));
+    } else {
+      dispatch(fetchUserEntries(params));
+    }
+    setCurrentPage(nextPage);
+  };
+
+
+
+
+
 
   // Function to toggle between all entries and user entries
   const toggleViewMode = () => {
@@ -565,63 +654,143 @@ export default function InventoryScreen() {
           </TouchableOpacity>
         </View>
       </View>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              {viewMode === 'all' ? 'All Inventory Entries' : 'My Inventory Entries'}
-            </Text>
-          </View>
-          
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#2563eb" />
-              <Text style={styles.loadingText}>Loading entries...</Text>
+      {/* Search and Filter Section - Fixed above FlatList */}
+      <View style={styles.searchContainer}>
+        <CustomSearchBar
+          placeholder="Search inventory entries..."
+          value={searchTerm}
+          onChangeText={handleSearchChange}
+          onClear={() => setSearchTerm('')}
+        />
+        <TouchableOpacity 
+          style={[styles.filterButton, activeFiltersCount > 0 && styles.filterButtonActive]}
+          onPress={() => setShowFilters(true)}
+        >
+          <Filter size={20} color={activeFiltersCount > 0 ? "#2563eb" : "#6b7280"} />
+          {activeFiltersCount > 0 && (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
             </View>
-          ) : entries.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Package size={48} color="#9ca3af" />
-              <Text style={styles.emptyText}>No inventory entries found</Text>
-              <Text style={styles.emptySubtext}>
-                {viewMode === 'mine' ? 'You haven\'t created any inventory entries yet' : 'No inventory entries have been recorded yet'}
-              </Text>
-            </View>
-          ) : (
-            <>
-              {entries.map(entry => (
-                <EntryItem key={entry.id} entry={entry} />
-              ))}
-              
-              {/* Pagination Controls */}
-              {meta.pages > 1 && (
-                <View style={styles.paginationContainer}>
-                  <TouchableOpacity 
-                    style={[styles.paginationButton, !pagination.hasPrevPage && styles.paginationButtonDisabled]}
-                    onPress={pagination.goToPrevPage}
-                    disabled={!pagination.hasPrevPage}
-                  >
-                    <ChevronLeft size={20} color={pagination.hasPrevPage ? "#2563eb" : "#9ca3af"} />
-                  </TouchableOpacity>
-                  
-                  <Text style={styles.paginationText}>
-                    Page {pagination.currentPage} of {pagination.totalPages}
-                  </Text>
-                  
-                  <TouchableOpacity 
-                    style={[styles.paginationButton, !pagination.hasNextPage && styles.paginationButtonDisabled]}
-                    onPress={pagination.goToNextPage}
-                    disabled={!pagination.hasNextPage}
-                  >
-                    <ChevronRight size={20} color={pagination.hasNextPage ? "#2563eb" : "#9ca3af"} />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </>
           )}
-        </View>
-      </ScrollView>
+        </TouchableOpacity>
+      </View>
 
+      {/* Active Filters Display */}
+      {activeFiltersCount > 0 && (
+        <View style={styles.activeFiltersContainer}>
+          <Text style={styles.activeFiltersTitle}>Active Filters:</Text>
+          <View style={styles.activeFiltersRow}>
+            {searchTerm && (
+              <View style={styles.activeFilterChip}>
+                <Text style={styles.activeFilterText}>Search</Text>
+              </View>
+            )}
+            {filters.entry_type && filters.entry_type.trim() !== '' && (
+              <View style={styles.activeFilterChip}>
+                <Text style={styles.activeFilterText}>Entry Type</Text>
+              </View>
+            )}
+            {Number(filters.user_id) > 0 && (
+              <View style={styles.activeFilterChip}>
+                <Text style={styles.activeFilterText}>User</Text>
+              </View>
+            )}
+            {Number(filters.location_id) > 0 && (
+              <View style={styles.activeFilterChip}>
+                <Text style={styles.activeFilterText}>Location</Text>
+              </View>
+            )}
+            {Number(filters.product_id) > 0 && (
+              <View style={styles.activeFilterChip}>
+                <Text style={styles.activeFilterText}>Product</Text>
+              </View>
+            )}
+            {filters.category && filters.category.trim() !== '' && (
+              <View style={styles.activeFilterChip}>
+                <Text style={styles.activeFilterText}>Category</Text>
+              </View>
+            )}
+            {Number(filters.subcategory_id) > 0 && (
+              <View style={styles.activeFilterChip}>
+                <Text style={styles.activeFilterText}>Subcategory</Text>
+              </View>
+            )}
+            {filters.reference_id && filters.reference_id.trim() !== '' && (
+              <View style={styles.activeFilterChip}>
+                <Text style={styles.activeFilterText}>Reference ID</Text>
+              </View>
+            )}
+            {Boolean(filters.date_from || filters.date_to || (Number(filters.days) > 0)) && (
+              <View style={styles.activeFilterChip}>
+                <Text style={styles.activeFilterText}>Date Range</Text>
+              </View>
+            )}
+            <TouchableOpacity onPress={clearAllFilters} style={styles.clearAllButton}>
+              <X size={14} color="#ef4444" />
+              <Text style={styles.clearAllText}>Clear All</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+  <FlatList
+    ref={flatListRef}
+    data={entries}
+    keyExtractor={(item) => item.id.toString()}
+    renderItem={({ item }) => <EntryItem entry={item} />}
+    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    onScroll={(event) => {
+      const offsetY = event.nativeEvent.contentOffset.y;
+      setShowScrollToTop(offsetY > 200);
+    }}
+    scrollEventThrottle={16}
+    ListHeaderComponent={() => (
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>
+          {viewMode === 'all' ? 'All Inventory Entries' : 'My Inventory Entries'}
+        </Text>
+      </View>
+    )}
+    ListEmptyComponent={() => (
+      <View style={styles.emptyContainer}>
+        <Package size={48} color="#9ca3af" />
+        <Text style={styles.emptyText}>
+          {viewMode === 'all' ? 'No inventory entries found' : 'No entries found for your account'}
+        </Text>
+      </View>
+    )}
+    onEndReached={() => {
+      if (!loading && entries.length > 0 && entries.length >= itemsPerPage) {
+        loadMoreEntries();
+      }
+    }}
+    onEndReachedThreshold={0.1}
+    ListFooterComponent={() => {
+      if (loading && entries.length > 0) {
+        return (
+          <View style={styles.loadMoreContainer}>
+            <ActivityIndicator size="small" color="#2563eb" />
+            <Text style={styles.loadMoreText}>Loading more entries...</Text>
+          </View>
+        );
+      }
+      return null;
+    }}
+  />
+
+      {/* Scroll to Top Button */}
+      {showScrollToTop && (
+        <TouchableOpacity 
+        style={styles.scrollToTopButton}
+        onPress={scrollToTop}
+        activeOpacity={0.8}
+      >
+        <ChevronUp size={24} color="white" />
+      </TouchableOpacity>
+      )}
+
+      {/* Entry Details Modal */}
       <InventoryEntryDetailsModal
         visible={showEntryDetails}
         onClose={() => {
@@ -629,6 +798,30 @@ export default function InventoryScreen() {
           setSelectedEntry(null);
         }}
         entry={selectedEntry}
+      />
+
+      {/* Filters Modal */}
+      <InventoryFiltersModal
+        isVisible={showFilters}
+        onClose={() => setShowFilters(false)}
+        filters={{
+          search: filters.search || '',
+          entry_type: filters.entry_type || '',
+          user_id: filters.user_id || 0,
+          location_id: filters.location_id || 0,
+          product_id: filters.product_id || 0,
+          category: filters.category || '',
+          subcategory_id: filters.subcategory_id || 0,
+          reference_id: filters.reference_id || '',
+          date_from: filters.date_from || '',
+          date_to: filters.date_to || '',
+          days: filters.days || 0,
+        }}
+        onApplyFilters={handleApplyFilters}
+        subcategories={subcategories}
+        locations={locations}
+        users={users}
+        products={products}
       />
     </SafeAreaView>
   );
@@ -1031,5 +1224,132 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#0369a1',
     fontWeight: '500',
+  },
+  // Search and Filter Styles
+  searchContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    alignItems: 'center',
+    gap: 12,
+  },
+  filterButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    position: 'relative',
+  },
+  filterButtonActive: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#2563eb',
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#ef4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterBadgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  activeFiltersContainer: {
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  activeFiltersTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  activeFiltersRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    alignItems: 'center',
+  },
+  activeFilterChip: {
+    backgroundColor: '#e0e7ff',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#c7d2fe',
+  },
+  activeFilterText: {
+    fontSize: 12,
+    color: '#3730a3',
+    fontWeight: '500',
+  },
+  clearAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    gap: 4,
+  },
+  clearAllText: {
+    fontSize: 12,
+    color: '#ef4444',
+    fontWeight: '500',
+  },
+  scrollToTopButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#2563eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  loadMoreContainer: {
+    padding: 20,
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 12,
+    margin: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  loadMoreText: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
   },
 });
