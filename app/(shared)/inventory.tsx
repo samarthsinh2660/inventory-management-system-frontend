@@ -346,10 +346,19 @@ export default function InventoryScreen() {
       loadEntries();
       dispatch(fetchInventoryBalance());
     } catch (error: any) {
+      // Prefer showing the backend-provided message
+      let message = 'Failed to create inventory entry';
+      if (typeof error === 'string') {
+        message = error;
+      } else if (error?.response?.data?.message) {
+        message = error.response.data.message;
+      } else if (error?.message) {
+        message = error.message;
+      }
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: error.message || 'Failed to create inventory entry',
+        text2: message,
       });
     }
   };
@@ -365,7 +374,17 @@ export default function InventoryScreen() {
 
   const EntryItem = ({ entry }: EntryItemProps) => {
     const displayUsername = entry.username || 'Unknown User';
-    
+
+    // Format date as dd-mm-yy
+    const formatDate = (dateString: string) => {
+      if (!dateString) return 'Unknown Date';
+      const date = new Date(dateString);
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear().toString().slice(-2);
+      return `${day}-${month}-${year}`;
+    };
+
     return (
       <TouchableOpacity 
         style={styles.entryItem}
@@ -390,7 +409,7 @@ export default function InventoryScreen() {
           </Text>
           <View style={styles.entryFooter}>
             <Text style={styles.entryTime}>
-              {entry.created_at ? new Date(entry.created_at).toLocaleDateString() : 'Unknown Date'} • {entry.location_name || 'Unknown Location'}
+              {formatDate(entry.created_at)} • {entry.location_name || 'Unknown Location'}
             </Text>
             {isMaster && (
               <Text style={styles.entryUser}>by {displayUsername}</Text>
@@ -550,10 +569,9 @@ export default function InventoryScreen() {
                       selectedValue={values.entry_type}
                       onValueChange={handleChange('entry_type')}
                     >
-                      <Picker.Item label="Manual In" value={InventoryEntryType.MANUAL_IN} />
-                      <Picker.Item label="Manual Out" value={InventoryEntryType.MANUAL_OUT} />
+                      <Picker.Item label="Purchase In" value={InventoryEntryType.MANUAL_IN} />
+                      <Picker.Item label="Removed" value={InventoryEntryType.MANUAL_OUT} />
                       <Picker.Item label="Manufacturing In" value={InventoryEntryType.MANUFACTURING_IN} />
-                      <Picker.Item label="Manufacturing Out" value={InventoryEntryType.MANUFACTURING_OUT} />
                     </Picker>
                   </View>
                   {errors.entry_type && touched.entry_type && (
@@ -736,7 +754,7 @@ export default function InventoryScreen() {
 
   <FlatList
     ref={flatListRef}
-    data={entries}
+    data={entries.filter(item => item && item.id)}
     keyExtractor={(item) => item.id.toString()}
     renderItem={({ item }) => <EntryItem entry={item} />}
     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}

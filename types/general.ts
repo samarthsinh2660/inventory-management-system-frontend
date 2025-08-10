@@ -188,6 +188,8 @@ export interface ProductFiltersState {
   location_id: number;
   source_type: string;
   formula_id: number;
+  component_id: number;
+  purchase_info_id: number;
 }
 
 export interface ProductFiltersModalProps extends BaseModalProps {
@@ -196,7 +198,8 @@ export interface ProductFiltersModalProps extends BaseModalProps {
   subcategories: SubcategoryModalItem[];
   locations: LocationModalItem[];
   formulas: FormulaModalItem[];
-  purchaseInfos?: PurchaseInfoModalItem[];
+  purchaseInfos: PurchaseInfoModalItem[];
+  products: ProductModalItem[];
 }
 
 // Edit Profile Modal Types
@@ -233,6 +236,33 @@ export interface InventoryFiltersState {
 export interface InventoryFiltersModalProps extends BaseModalProps {
   filters: InventoryFiltersState;
   onApplyFilters: (filters: InventoryFiltersState) => void;
+  subcategories: SubcategoryModalItem[];
+  locations: LocationModalItem[];
+  users: UserModalItem[];
+  products: ProductModalItem[];
+}
+
+// Audit Log Filters Modal Types
+import { AuditAction } from './log';
+
+export interface AuditLogFiltersState {
+  search: string;
+  user_id: number;
+  location_id: number;
+  action: string;
+  is_flag: boolean | null;
+  reference_id: string;
+  category: string;
+  subcategory_id: number;
+  product_id: number;
+  date_from: string;
+  date_to: string;
+  days: number;
+}
+
+export interface AuditLogFiltersModalProps extends BaseModalProps {
+  filters: AuditLogFiltersState;
+  onApplyFilters: (filters: AuditLogFiltersState) => void;
   subcategories: SubcategoryModalItem[];
   locations: LocationModalItem[];
   users: UserModalItem[];

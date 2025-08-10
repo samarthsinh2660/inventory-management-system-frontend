@@ -10,8 +10,9 @@ import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { createFormula, updateFormula} from '../../store/slices/formulasSlice';
 import { fetchSubcategories } from '../../store/slices/subcategoriesSlice';
+import { fetchProducts, fetchProductById } from '../../store/slices/productsSlice';
 import Toast from 'react-native-toast-message';
-import { CreateFormulaData, ProductCategory } from '@/types/product';
+import { CreateFormulaData, Product, ProductCategory } from '@/types/product';
 import { CreateFormulaModalProps } from '@/types/general';
 
 const validationSchema = Yup.object({
@@ -55,12 +56,17 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
   editingFormula,
 }) => {
   const dispatch = useAppDispatch();
-  const products = useAppSelector(state => state.products.list);
   const subcategories = useAppSelector(state => state.subcategories.list);
   const isEditing = !!editingFormula;
 
+  // Locally managed products loaded from backend based on filters
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  // Cache for selected products so labels persist even if filtered out
+  const [selectedProductsCache, setSelectedProductsCache] = useState<Map<number, Product>>(new Map());
+
   // Product filter states
-  const [productFilters, setProductFilters] = useState({
+  const [productFilters, setProductFilters] = useState<{ category: ProductCategory | ''; subcategoryId: number}>({
     category: '',
     subcategoryId: 0,
   });
@@ -75,45 +81,108 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
   // Custom dropdown visibility state
   const [dropdownVisible, setDropdownVisible] = useState<{[key: number]: boolean}>({});
 
-  // Helper function to get filtered subcategories based on selected category
-  const getFilteredSubcategories = (selectedCategory: string) => {
-    if (!selectedCategory) {
-      return subcategories; // Return all subcategories if no category is selected
+  // Helper: get label for selected product using current filtered list or cache
+  const getSelectedProductDisplay = (componentId: number) => {
+    if (!componentId) return 'Select Product';
+    let product = products.find(p => p.id === componentId);
+    if (!product && selectedProductsCache.has(componentId)) {
+      product = selectedProductsCache.get(componentId)!;
     }
-    
-    // Get unique subcategory IDs that are used by products in the selected category
-    const categoryProductSubcategoryIds = new Set(
-      products
-        .filter(product => product.category === selectedCategory)
-        .map(product => product.subcategory_id)
-    );
-    
-    // Return only subcategories that are actually used by products in this category
-    return subcategories.filter(subcategory => 
-      categoryProductSubcategoryIds.has(subcategory.id)
-    );
+    return product ? `${product.name} (${product.unit})` : 'Select Product';
   };
 
-  // Filter products based on selected filters
-  const filteredProducts = products.filter(product => {
-    // Filter by category
-    if (productFilters.category && product.category !== productFilters.category) {
-      return false;
+  // Helper: when product chosen from dropdown, update cache and form value
+  const handleProductSelect = (
+    index: number,
+    productId: number,
+    setFieldValue: (field: string, value: any, shouldValidate?: boolean | undefined) => void
+  ) => {
+    const product = products.find(p => p.id === productId);
+    if (product) {
+      setSelectedProductsCache(prev => {
+        const next = new Map(prev);
+        next.set(productId, product);
+        return next;
+      });
     }
-    
-    // Filter by subcategory - convert to number for comparison
-    if (productFilters.subcategoryId > 0 && product.subcategory_id !== Number(productFilters.subcategoryId)) {
-      return false;
+    setFieldValue(`components.${index}.component_id`, productId);
+    setDropdownVisible(prev => ({ ...prev, [index]: false }));
+  };
+
+  // Helper function to get filtered subcategories based on selected category
+  const getFilteredSubcategories = (selectedCategory: string) => {
+    if (!selectedCategory) return subcategories;
+    // Use currently loaded products (already filtered by category) to determine which subcategories are relevant
+    const subcatIds = new Set(products.map(p => p.subcategory_id));
+    return subcategories.filter(sc => subcatIds.has(sc.id));
+  };
+
+  // Load products from backend based on current filters
+  const loadProducts = async (category: ProductCategory | '', subcategoryId: number) => {
+    try {
+      setLoadingProducts(true);
+      const res = await dispatch(
+        fetchProducts({
+          category: (category || undefined) as ProductCategory | undefined,
+          subcategory_id: subcategoryId > 0 ? subcategoryId : undefined,
+          limit: 100,
+          page: 1,
+        })
+      ).unwrap();
+      const list: Product[] = res.data || [];
+
+      // When editing, ensure currently selected component products exist in list
+      if (isEditing && editingFormula?.components?.length) {
+        const idsInList = new Set(list.map(p => p.id));
+        const neededIds: number[] = editingFormula.components
+          .map((c: any) => Number(c.component_id))
+          .filter((id: number) => !!id && !idsInList.has(id));
+
+        if (neededIds.length) {
+          const fetched: Product[] = [];
+          for (const pid of neededIds) {
+            try {
+              const pr = await dispatch(fetchProductById(pid)).unwrap();
+              if (pr?.data) fetched.push(pr.data as Product);
+            } catch (e: any) {
+              // Ignore missing products; continue
+            }
+          }
+          setProducts([...list, ...fetched]);
+        } else {
+          setProducts(list);
+        }
+      } else {
+        setProducts(list);
+      }
+    } catch (error: any) {
+      // Prefer backend-provided error message
+      let message = 'Failed to load products';
+      if (typeof error === 'string') message = error;
+      else if (error?.response?.data?.error?.message) message = error.response.data.error.message;
+      else if (error?.response?.data?.message) message = error.response.data.message;
+      else if (error?.message) message = error.message;
+      Toast.show({ type: 'error', text1: 'Error', text2: message });
+    } finally {
+      setLoadingProducts(false);
     }
-    
-    return true;
-  });
+  };
+
+  // Fetch products when modal opens and when filters change
+  useEffect(() => {
+    if (!isVisible) return;
+    loadProducts(productFilters.category, productFilters.subcategoryId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVisible, productFilters.category, productFilters.subcategoryId]);
+
+  // Products are already filtered by backend fetch; keep the name for compatibility
+  const filteredProducts = products;
 
   // Handle filter changes
-  const handleCategoryChange = (value: string) => {
+  const handleCategoryChange = (value: ProductCategory | '') => {
     setProductFilters(prev => ({
       ...prev,
-      category: value,
+      category: (value || '') as ProductCategory | '',
       // Reset subcategory when category changes to ensure compatibility
       subcategoryId: 0,
     }));
@@ -187,12 +256,13 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
       }
       onClose();
     } catch (error: any) {
-      console.error('CreateFormulaModal error:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: error.message || `Failed to ${isEditing ? 'update' : 'create'} formula`,
-      });
+      // Show backend message if available
+      let message = `Failed to ${isEditing ? 'update' : 'create'} formula`;
+      if (typeof error === 'string') message = error;
+      else if (error?.response?.data?.error?.message) message = error.response.data.error.message;
+      else if (error?.response?.data?.message) message = error.response.data.message;
+      else if (error?.message) message = error.message;
+      Toast.show({ type: 'error', text1: 'Error', text2: message });
     }
   };
 
@@ -316,61 +386,57 @@ export const CreateFormulaModal: React.FC<CreateFormulaModalProps> = ({
                   <View>
                     <ScrollView style={styles.componentsScrollView} nestedScrollEnabled>
                       {values.components.map((component, index: number) => (
-                      <View key={index} style={styles.componentRow}>
-                        <View style={styles.productColumn}>
-                          <Text style={styles.label}>Product</Text>
-                          <TouchableOpacity 
-                            style={styles.customPicker}
-                            onPress={() => setDropdownVisible(prev => ({...prev, [index]: !prev[index]}))}
-                          >
-                            <Text style={styles.customPickerText}>
-                              {component.component_id === 0 
-                                ? "Select Product" 
-                                : (() => {
-                                    const selectedProduct = products.find(p => p.id === component.component_id);
-                                    return selectedProduct ? `${selectedProduct.name} (${selectedProduct.unit})` : "Select Product";
-                                  })()
-                              }
-                            </Text>
-                            <Text style={styles.customPickerArrow}>▼</Text>
-                          </TouchableOpacity>
+                        <View key={index} style={styles.componentRow}>
+                          <View style={styles.productColumn}>
+                            <Text style={styles.label}>Product</Text>
+                        <TouchableOpacity 
+                          style={styles.customPicker}
+                          onPress={() => setDropdownVisible(prev => ({...prev, [index]: !prev[index]}))}
+                        >
+                          <Text style={styles.customPickerText}>
+                            {getSelectedProductDisplay(component.component_id)}
+                          </Text>
+                          <Text style={styles.customPickerArrow}>{dropdownVisible[index] ? '▲' : '▼'}</Text>
+                        </TouchableOpacity>
 
-                          {dropdownVisible[index] && (
-                            <ScrollView style={styles.customDropdown} nestedScrollEnabled>
-                              <TouchableOpacity
-                                style={styles.customOption}
-                                onPress={() => {
-                                  setFieldValue(`components.${index}.component_id`, 0);
-                                  setDropdownVisible(prev => ({...prev, [index]: false}));
-                                }}
-                              >
-                                <Text>Select Product</Text>
-                              </TouchableOpacity>
-                              {filteredProducts.map((product) => (
+                        {dropdownVisible[index] && (
+                          <ScrollView style={styles.customDropdown} nestedScrollEnabled>
+                            <TouchableOpacity
+                              style={styles.customOption}
+                              onPress={() => {
+                                setFieldValue(`components.${index}.component_id`, 0);
+                                setDropdownVisible(prev => ({...prev, [index]: false}));
+                              }}
+                            >
+                              <Text>Select Product</Text>
+                            </TouchableOpacity>
+                            {filteredProducts
+                              .filter(product =>
+                                // Exclude products already selected in any component
+                                !values.components.some(comp => comp.component_id === product.id)
+                              )
+                              .map((product) => (
                                 <TouchableOpacity
                                   key={product.id}
                                   style={styles.customOption}
-                                  onPress={() => {
-                                    setFieldValue(`components.${index}.component_id`, product.id);
-                                    setDropdownVisible(prev => ({...prev, [index]: false}));
-                                  }}
+                                  onPress={() => handleProductSelect(index, product.id, setFieldValue)}
                                 >
                                   <Text>{product.name} ({product.unit})</Text>
                                 </TouchableOpacity>
                               ))}
-                            </ScrollView>
-                          )}
-                          {touched.components && 
-                           (touched.components as any[])[index] && 
-                           errors.components && 
-                           Array.isArray(errors.components) && 
-                           errors.components[index] && 
-                           typeof errors.components[index] === 'object' && 
-                           'component_id' in errors.components[index] && (
-                            <Text style={styles.errorText}>
-                              {String((errors.components[index] as any).component_id)}
-                            </Text>
-                          )}
+                          </ScrollView>
+                        )}
+                        {touched.components && 
+                         (touched.components as any[])[index] && 
+                         errors.components && 
+                         Array.isArray(errors.components) && 
+                         errors.components[index] && 
+                         typeof errors.components[index] === 'object' && 
+                         'component_id' in errors.components[index] && (
+                          <Text style={styles.errorText}>
+                            {String((errors.components[index] as any).component_id)}
+                          </Text>
+                        )}
                         </View>
 
                         <View style={styles.quantityColumn}>

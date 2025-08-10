@@ -80,11 +80,10 @@ export interface Product {
     loading: boolean;
     error: string | null;
     meta: {
-      count: number;
-      total?: number;
-      page?: number;
-      limit?: number;
-      pages?: number;
+      total: number;
+      page: number;
+      limit: number;
+      pages: number;
     };
   }
 
@@ -103,8 +102,7 @@ export interface Product {
     source_type?: ProductSourceType;
     formula_id?: number;
     component_id?: number;
-    is_parent?: boolean;
-    is_component?: boolean;
+    purchase_info_id?: number;
     page?: number;
     limit?: number;
   }
@@ -347,4 +345,26 @@ export interface FormulaComponentDisplay {
     location_id: number;
     source_type: string;
     formula_id: number;
+    component_id: number;
+    purchase_info_id: number;
+  }
+
+  // API Response interface for new unified endpoint
+  export interface ProductsApiResponse {
+    status: string;
+    message: string;
+    data: Product[];
+    meta: {
+      total: number;
+      page: number;
+      limit: number;
+      pages: number;
+    };
+  }
+
+  // Single product API response
+  export interface ProductApiResponse {
+    status: string;
+    message: string;
+    data: Product;
   }

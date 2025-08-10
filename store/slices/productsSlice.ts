@@ -1,11 +1,11 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { API_URL } from '../../utils/constant';
-import { Product, ProductSearchParams, CreateProductData, UpdateProductData, ProductsState, ProductFetchParams } from '@/types/product';
+import { Product, ProductSearchParams, CreateProductData, UpdateProductData, ProductsState, ProductFetchParams, ProductsApiResponse, ProductApiResponse } from '@/types/product';
 import { getAuthHeader } from '@/utils/authHelper';
 
-// API response interface
-interface ApiResponse<T> {
+// Legacy API response interface (keeping for backward compatibility)
+interface LegacyApiResponse<T> {
   success: boolean;
   message: string;
   data: T;
@@ -26,14 +26,17 @@ const initialState: ProductsState = {
   loading: false,
   error: null,
   meta: {
-    count: 0,
+    total: 0,
+    page: 1,
+    limit: 20,
+    pages: 0,
   },
 };
 
 
 export const fetchProducts = createAsyncThunk(
   'products/fetchProducts',
-  async (params: ProductFetchParams = {}, { rejectWithValue, getState }) => {
+  async (params: ProductSearchParams = {}, { rejectWithValue, getState }) => {
     try {
       const state = getState() as { auth: { accessToken: string | null } };
       const token = state.auth.accessToken;
@@ -43,17 +46,25 @@ export const fetchProducts = createAsyncThunk(
       }
       
       const queryParams = new URLSearchParams();
+      if (params.search) queryParams.append('search', params.search);
+      if (params.category) queryParams.append('category', params.category);
+      if (params.subcategory_id) queryParams.append('subcategory_id', params.subcategory_id.toString());
+      if (params.location_id) queryParams.append('location_id', params.location_id.toString());
+      if (params.source_type) queryParams.append('source_type', params.source_type);
+      if (params.formula_id) queryParams.append('formula_id', params.formula_id.toString());
+      if (params.component_id) queryParams.append('component_id', params.component_id.toString());
+      if (params.purchase_info_id) queryParams.append('purchase_info_id', params.purchase_info_id.toString());
       if (params.page) queryParams.append('page', params.page.toString());
       if (params.limit) queryParams.append('limit', params.limit.toString());
-      if (params.subcategory_id) queryParams.append('subcategory_id', params.subcategory_id.toString());
-      if (params.name) queryParams.append('name', params.name);
 
       const query = queryParams.toString() ? `?${queryParams.toString()}` : '';
-      const response = await axios.get<ApiResponse<Product[]>>(`${API_URL}/products${query}`, getAuthHeader(token));
+      const response = await axios.get<ProductsApiResponse>(`${API_URL}/products${query}`, getAuthHeader(token));
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        return rejectWithValue(error.response.data.message || 'Failed to fetch products');
+        const data: any = error.response.data || {};
+        const backendMessage = data?.error?.message || data?.message;
+        return rejectWithValue(backendMessage || 'Failed to fetch products');
       }
       return rejectWithValue('Failed to fetch products');
     }
@@ -71,17 +82,20 @@ export const fetchProductById = createAsyncThunk(
         throw new Error('Authentication required');
       }
       
-      const response = await axios.get<ApiResponse<Product>>(`${API_URL}/products/${id}`, getAuthHeader(token));
+      const response = await axios.get<ProductApiResponse>(`${API_URL}/products/${id}`, getAuthHeader(token));
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        return rejectWithValue(error.response.data.message || 'Failed to fetch product');
+        const data: any = error.response.data || {};
+        const backendMessage = data?.error?.message || data?.message;
+        return rejectWithValue(backendMessage || 'Failed to fetch product');
       }
       return rejectWithValue('Failed to fetch product');
     }
   }
 );
 
+// Deprecated: Use fetchProducts instead as it now handles all search/filter functionality
 export const searchProducts = createAsyncThunk(
   'products/searchProducts',
   async (params: ProductSearchParams, { rejectWithValue, getState }) => {
@@ -93,11 +107,26 @@ export const searchProducts = createAsyncThunk(
         throw new Error('Authentication required');
       }
       
-      const response = await axios.get<ApiResponse<Product[]>>(`${API_URL}/products/search`, { params, ...getAuthHeader(token) });
+      const queryParams = new URLSearchParams();
+      if (params.search) queryParams.append('search', params.search);
+      if (params.category) queryParams.append('category', params.category);
+      if (params.subcategory_id) queryParams.append('subcategory_id', params.subcategory_id.toString());
+      if (params.location_id) queryParams.append('location_id', params.location_id.toString());
+      if (params.source_type) queryParams.append('source_type', params.source_type);
+      if (params.formula_id) queryParams.append('formula_id', params.formula_id.toString());
+      if (params.component_id) queryParams.append('component_id', params.component_id.toString());
+      if (params.purchase_info_id) queryParams.append('purchase_info_id', params.purchase_info_id.toString());
+      if (params.page) queryParams.append('page', params.page.toString());
+      if (params.limit) queryParams.append('limit', params.limit.toString());
+
+      const query = queryParams.toString() ? `?${queryParams.toString()}` : '';
+      const response = await axios.get<ProductsApiResponse>(`${API_URL}/products${query}`, getAuthHeader(token));
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        return rejectWithValue(error.response.data.message || 'Failed to search products');
+        const data: any = error.response.data || {};
+        const backendMessage = data?.error?.message || data?.message;
+        return rejectWithValue(backendMessage || 'Failed to search products');
       }
       return rejectWithValue('Failed to search products');
     }
@@ -107,7 +136,7 @@ export const searchProducts = createAsyncThunk(
 
 export const createProduct = createAsyncThunk(
   'products/createProduct',
-  async (productData: CreateProductData, { rejectWithValue, getState }) => {
+  async (data: CreateProductData, { rejectWithValue, getState }) => {
     try {
       const state = getState() as { auth: { accessToken: string | null } };
       const token = state.auth.accessToken;
@@ -116,11 +145,13 @@ export const createProduct = createAsyncThunk(
         throw new Error('Authentication required');
       }
       
-      const response = await axios.post<ApiResponse<Product>>(`${API_URL}/products`, productData, getAuthHeader(token));
+      const response = await axios.post<ProductApiResponse>(`${API_URL}/products`, data, getAuthHeader(token));
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        return rejectWithValue(error.response.data.message || 'Failed to create product');
+        const data: any = error.response.data || {};
+        const backendMessage = data?.error?.message || data?.message;
+        return rejectWithValue(backendMessage || 'Failed to create product');
       }
       return rejectWithValue('Failed to create product');
     }
@@ -129,7 +160,7 @@ export const createProduct = createAsyncThunk(
 
 export const updateProduct = createAsyncThunk(
   'products/updateProduct',
-  async ({ id, data }: UpdateProductData, { rejectWithValue, getState }) => {
+  async ({ id, data }: { id: number; data: UpdateProductData }, { rejectWithValue, getState }) => {
     try {
       const state = getState() as { auth: { accessToken: string | null } };
       const token = state.auth.accessToken;
@@ -138,11 +169,13 @@ export const updateProduct = createAsyncThunk(
         throw new Error('Authentication required');
       }
       
-      const response = await axios.put<ApiResponse<Product>>(`${API_URL}/products/${id}`, data, getAuthHeader(token));
+      const response = await axios.put<ProductApiResponse>(`${API_URL}/products/${id}`, data, getAuthHeader(token));
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        return rejectWithValue(error.response.data.message || 'Failed to update product');
+        const data: any = error.response.data || {};
+        const backendMessage = data?.error?.message || data?.message;
+        return rejectWithValue(backendMessage || 'Failed to update product');
       }
       return rejectWithValue('Failed to update product');
     }
@@ -164,7 +197,9 @@ export const deleteProduct = createAsyncThunk(
       return id;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        return rejectWithValue(error.response.data.message || 'Failed to delete product');
+        const data: any = error.response.data || {};
+        const backendMessage = data?.error?.message || data?.message;
+        return rejectWithValue(backendMessage || 'Failed to delete product');
       }
       return rejectWithValue('Failed to delete product');
     }
@@ -193,8 +228,10 @@ const productsSlice = createSlice({
         state.loading = false;
         state.list = action.payload.data || [];
         state.meta = {
-          count: action.payload.meta?.count ?? (action.payload.data?.length || 0),
-          ...action.payload.meta,
+          total: action.payload.meta?.total || 0,
+          page: action.payload.meta?.page || 1,
+          limit: action.payload.meta?.limit || 20,
+          pages: action.payload.meta?.pages || 0,
         };
       })
       .addCase(fetchProducts.rejected, (state, action) => {
@@ -225,8 +262,10 @@ const productsSlice = createSlice({
         state.loading = false;
         state.list = action.payload.data || [];
         state.meta = {
-          count: action.payload.meta?.total ?? (action.payload.data?.length || 0),
-          ...action.payload.meta,
+          total: action.payload.meta?.total || 0,
+          page: action.payload.meta?.page || 1,
+          limit: action.payload.meta?.limit || 20,
+          pages: action.payload.meta?.pages || 0,
         };
       })
       .addCase(searchProducts.rejected, (state, action) => {
@@ -237,7 +276,7 @@ const productsSlice = createSlice({
       // Create product
       .addCase(createProduct.fulfilled, (state, action) => {
         state.list.push(action.payload.data);
-        state.meta.count = (state.meta.count || 0) + 1;
+        state.meta.total = (state.meta.total || 0) + 1;
       })
       .addCase(createProduct.rejected, (state, action) => {
         state.error = action.payload as string || 'Failed to create product';
@@ -263,7 +302,7 @@ const productsSlice = createSlice({
         if (state.selected?.id === action.payload) {
           state.selected = null;
         }
-        state.meta.count = Math.max(0, (state.meta.count || 0) - 1);
+        state.meta.total = Math.max(0, (state.meta.total || 0) - 1);
       })
       .addCase(deleteProduct.rejected, (state, action) => {
         state.error = action.payload as string || 'Failed to delete product';

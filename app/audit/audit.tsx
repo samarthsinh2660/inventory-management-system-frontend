@@ -1,15 +1,23 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FileText, RotateCcw, Plus, Minus, CreditCard as Edit, Filter, Flag, ChevronLeft } from 'lucide-react-native';
+import { FileText, RotateCcw, Plus, Minus, CreditCard as Edit, Filter, Flag, ChevronLeft, ChevronUp } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
-import { fetchAuditLogs, deleteAuditLog, flagAuditLog } from '../../store/slices/auditLogsSlice';
+import { fetchAuditLogs, deleteAuditLog, flagAuditLog, setFilters, resetFilters } from '../../store/slices/auditLogsSlice';
+import { fetchUsers } from '../../store/slices/usersSlice';
+import { fetchLocations } from '../../store/slices/locationsSlice';
+import { fetchSubcategories } from '../../store/slices/subcategoriesSlice';
+import { fetchProducts } from '../../store/slices/productsSlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { AuditLogFiltersModal } from '../../components/audit/AuditLogFiltersModal';
+import { CustomSearchBar } from '../../components/CustomSearchBar';
+import { useDebounce } from '../../utils/helperFunctions';
 import Toast from 'react-native-toast-message';
 import { UserRole } from '@/types/user';
 import { AuditAction, AuditLog } from '@/types/log';
+import { AuditLogFiltersState } from '@/types/general';
 // To suppress specific warnings (not recommended for production)
 import { LogBox } from 'react-native';
 LogBox.ignoreLogs(['Text strings must be rendered within a <Text> component']);
@@ -17,41 +25,171 @@ LogBox.ignoreLogs(['Text strings must be rendered within a <Text> component']);
 export default function AuditLogs() {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { list: auditLogs = [], loading } = useAppSelector(state => state.auditLogs);
+  const { list: auditLogs = [], loading, filters: reduxFilters } = useAppSelector(state => state.auditLogs);
+  const { list: users = [] } = useAppSelector(state => state.users);
+  const { list: locations = [] } = useAppSelector(state => state.locations);
+  const { list: subcategories = [] } = useAppSelector(state => state.subcategories);
+  const { list: products = [] } = useAppSelector(state => state.products);
   const user = useAppSelector(state => state.auth.user);
   const [refreshing, setRefreshing] = useState(false);
   const [showMyLogsOnly, setShowMyLogsOnly] = useState(false);
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
   // Track which logs have their details expanded
   const [expandedIds, setExpandedIds] = useState<Record<number, boolean>>({});
+  
+  // Search and filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showFiltersModal, setShowFiltersModal] = useState(false);
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
+  const flatListRef = useRef<FlatList>(null);
+  const searchInputRef = useRef<TextInput>(null);
+  
+  // Initialize filter state
+  const [localFilters, setLocalFilters] = useState<AuditLogFiltersState>({
+    search: '',
+    user_id: 0,
+    location_id: 0,
+    action: '',
+    is_flag: null,
+    reference_id: '',
+    category: '',
+    subcategory_id: 0,
+    product_id: 0,
+    date_from: '',
+    date_to: '',
+    days: 0,
+  });
 
-  const toggleExpanded = (id: number) => {
+  const toggleExpanded = useCallback((id: number) => {
     setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }));
-  };
+  }, []);
 
   const isMaster = user?.role === UserRole.MASTER;
 
-  // Filter logs based on user role and filter settings
-  const filteredLogs = isMaster 
-    ? auditLogs.filter(log => {
-        const userFilter = showMyLogsOnly ? log.username === user?.username : true;
-        const flagFilter = showFlaggedOnly ? log.is_flag : true;
-        return userFilter && flagFilter;
-      })
-    : auditLogs.filter(log => log.username === user?.username);
+  // Build a single, memoized filters object
+  const currentFilters = useMemo<AuditLogFiltersState>(() => ({
+    ...localFilters,
+    search: debouncedSearchQuery,
+    user_id: (showMyLogsOnly && isMaster && user?.id) ? user.id : 0,
+    is_flag: showFlaggedOnly ? true : null,
+  }), [localFilters, debouncedSearchQuery, showMyLogsOnly, showFlaggedOnly, isMaster, user?.id]);
+
+  // Use all logs since filtering is now done on backend
+  const filteredLogs = useMemo(() => auditLogs, [auditLogs]);
+
+  // Fetch required data for filters
+  useEffect(() => {
+    dispatch(fetchUsers());
+    dispatch(fetchLocations());
+    dispatch(fetchSubcategories(undefined));
+    dispatch(fetchProducts({}));
+  }, [dispatch]);
+
+  // Single effect: fetch when memoized filters change
+  useEffect(() => {
+    const apiFilters = {
+      ...currentFilters,
+      action: currentFilters.action as AuditAction | undefined,
+      is_flag: currentFilters.is_flag === null ? undefined : currentFilters.is_flag,
+      };
+    dispatch(setFilters(apiFilters));
+    dispatch(fetchAuditLogs(apiFilters));
+  }, [currentFilters, dispatch]);
+
+  // Refocus search input after loading state changes (safeguard for focus drops)
+  useEffect(() => {
+    if (searchInputRef.current) {
+      const t = setTimeout(() => searchInputRef.current?.focus(), 5);
+      return () => clearTimeout(t);
+    }
+  }, [loading]);
 
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
-      await dispatch(fetchAuditLogs({}));
+      const apiFilters = {
+        ...currentFilters,
+        action: currentFilters.action as AuditAction | undefined,
+        is_flag: currentFilters.is_flag === null ? undefined : currentFilters.is_flag,
+      };
+      dispatch(fetchAuditLogs(apiFilters));
     } finally {
       setRefreshing(false);
     }
-  }, [dispatch]);
+  }, [currentFilters, dispatch]);
 
-  useEffect(() => {
+  // Remove extra effects; currentFilters handles all cases
+
+  // Scroll to top functionality
+  const scrollToTop = useCallback(() => {
+    flatListRef.current?.scrollToOffset({ animated: true, offset: 0 });
+  }, []);
+
+  // Handle scroll to show/hide scroll to top button
+  const handleScroll = useCallback((event: any) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    setShowScrollToTop(offsetY > 300);
+  }, []);
+
+  // Handle filter application
+  const handleApplyFilters = useCallback((newFilters: AuditLogFiltersState) => {
+    // Update only local UI filters; fetch will be triggered by currentFilters when search/toggles or debouncedSearch change
+    setLocalFilters(newFilters);
+  }, []);
+
+  // Handle search input
+  const handleSearchChange = useCallback((text: string) => {
+    setSearchQuery(text);
+  }, []);
+
+  // Clear search
+  const clearSearch = useCallback(() => {
+    setSearchQuery('');
+    // no fetch here; debounced effect via currentFilters will handle
+  }, []);
+
+  // Count active filters
+  const getActiveFiltersCount = useCallback(() => {
+    let count = 0;
+    if (localFilters.search) count++;
+    if (localFilters.user_id > 0) count++;
+    if (localFilters.location_id > 0) count++;
+    if (localFilters.action) count++;
+    if (localFilters.is_flag !== null) count++;
+    if (localFilters.reference_id) count++;
+    if (localFilters.category) count++;
+    if (localFilters.subcategory_id > 0) count++;
+    if (localFilters.product_id > 0) count++;
+    if (localFilters.date_from) count++;
+    if (localFilters.date_to) count++;
+    if (localFilters.days > 0) count++;
+    return count;
+  }, [localFilters]);
+
+  // Clear all filters
+  const clearAllFilters = useCallback(() => {
+    const clearedFilters: AuditLogFiltersState = {
+      search: '',
+      user_id: 0,
+      location_id: 0,
+      action: '',
+      is_flag: null,
+      reference_id: '',
+      category: '',
+      subcategory_id: 0,
+      product_id: 0,
+      date_from: '',
+      date_to: '',
+      days: 0,
+    };
+    setSearchQuery('');
+    setLocalFilters(clearedFilters);
+    dispatch(resetFilters());
     dispatch(fetchAuditLogs({}));
   }, [dispatch]);
+
+  // Removed obsolete searchTimeout cleanup; debounce hook manages timing
 
   const handleRevertChange = async (logId: number) => {
     try {
@@ -223,12 +361,18 @@ export default function AuditLogs() {
               </View>
             )}
 
+            {/**
+             * Commented out inline Flagged chip to reduce header crowding
+             * Keeping for potential future use.
+             */}
+            {/**
             {isFlagged && (
               <View style={styles.flagIndicator}>
                 <Flag size={12} color="#dc2626" fill="#dc2626" />
                 <Text style={styles.flagIndicatorText}>Flagged</Text>
               </View>
             )}
+            */}
           </View>
           <Text style={styles.timestamp}>
             {formatTimestamp(item.timestamp)}
@@ -265,10 +409,10 @@ export default function AuditLogs() {
             <View style={{ marginBottom: 8 }}>
               <TouchableOpacity onPress={() => toggleExpanded(item.id)} style={styles.toggleDetailsButton}>
                 <Text style={styles.toggleDetailsText}>{expandedIds[item.id] ? 'Hide details' : 'Show details'}</Text>
-                <ChevronLeft 
-                  size={14} 
-                  color={expandedIds[item.id] ? '#2563eb' : '#6b7280'} 
-                  style={{ transform: [{ rotate: expandedIds[item.id] ? '-90deg' : '90deg' }] }} 
+                <ChevronUp
+                  size={14}
+                  color={expandedIds[item.id] ? '#2563eb' : '#6b7280'}
+                  style={{ transform: [{ rotate: expandedIds[item.id] ? '0deg' : '180deg' }] }}
                 />
               </TouchableOpacity>
             </View>
@@ -324,88 +468,194 @@ export default function AuditLogs() {
     );
   };
 
-  if (loading && !refreshing) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <LoadingSpinner />
-      </SafeAreaView>
-    );
-  }
+  // Keep UI mounted during loading to prevent TextInput focus loss
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <ChevronLeft size={24} color="#2563eb" strokeWidth={2} />
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <ChevronLeft size={24} color="#2563eb" />
         </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <FileText size={24} color="#2563eb" />
-          <View>
-            <Text style={styles.title}>
-              {isMaster ? 'Audit Logs' : 'My Activity Log'}
-            </Text>
-            <Text style={styles.subtitle}>
-              {isMaster 
-                ? `${filteredLogs.length} total entries ${showMyLogsOnly ? '(my entries)' : '(all entries)'}${showFlaggedOnly ? ' (flagged only)' : ''}`
-                : `${filteredLogs.length} my entries`
-              }
-            </Text>
-          </View>
+        <Text style={styles.title}>Audit Logs</Text>
+        <View style={styles.headerActions}>
+          {isMaster && (
+            <>
+              <TouchableOpacity
+                style={[
+                  styles.toggleButton,
+                  showMyLogsOnly && styles.toggleButtonActive,
+                ]}
+                onPress={() => setShowMyLogsOnly(!showMyLogsOnly)}
+              >
+                <Text
+                  style={[
+                    styles.toggleButtonText,
+                    showMyLogsOnly && styles.toggleButtonTextActive,
+                  ]}
+                >
+                  My Logs
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.toggleButton,
+                  showFlaggedOnly && styles.toggleButtonActive,
+                ]}
+                onPress={() => setShowFlaggedOnly(!showFlaggedOnly)}
+              >
+                <Flag size={16} color={showFlaggedOnly ? '#ffffff' : '#6b7280'} />
+                <Text
+                  style={[
+                    styles.toggleButtonText,
+                    showFlaggedOnly && styles.toggleButtonTextActive,
+                  ]}
+                >
+                  Flagged
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
-        {isMaster && (
-          <View style={styles.filterButtons}>
-            <TouchableOpacity
-              style={[styles.filterButton, showMyLogsOnly && styles.filterButtonActive]}
-              onPress={() => setShowMyLogsOnly(!showMyLogsOnly)}
-            >
-              <Filter size={16} color={showMyLogsOnly ? "#2563eb" : "#6b7280"} />
-              <Text style={[styles.filterButtonText, showMyLogsOnly && styles.filterButtonTextActive]}>
-                {showMyLogsOnly ? 'My Logs' : 'All Logs'}
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.filterButton, showFlaggedOnly && styles.filterButtonActive]}
-              onPress={() => setShowFlaggedOnly(!showFlaggedOnly)}
-            >
-              <Flag size={16} color={showFlaggedOnly ? "#dc2626" : "#6b7280"} fill={showFlaggedOnly ? "#dc2626" : "none"} />
-              <Text style={[styles.filterButtonText, showFlaggedOnly && styles.filterButtonTextActive]}>
-                {showFlaggedOnly ? 'Flagged' : 'All Status'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </View>
 
-      <FlatList
-        data={filteredLogs}
-        renderItem={renderAuditLog}
-        keyExtractor={(item) => item.id.toString()}
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <FileText size={48} color="#d1d5db" />
-            <Text style={styles.emptyText}>
-              {isMaster ? 'No audit logs found' : 'No activity logs found'}
-            </Text>
-            <Text style={styles.emptySubtext}>
-              {isMaster 
-                ? 'System changes will appear here'
-                : 'Your inventory activities will appear here'
-              }
-            </Text>
-          </View>
-        }
+      {/* Non-blocking loading overlay to keep inputs mounted */}
+      {loading && !refreshing && (
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <LoadingSpinner />
+        </View>
+      )}
+
+    {/* Search and Filter Section */}
+    <View style={styles.searchContainer}>
+      <CustomSearchBar
+        placeholder="Search audit logs... (for reference id use REF=12345) "
+        value={searchQuery}
+        onChangeText={handleSearchChange}
+        onClear={() => setSearchQuery('')}
       />
-    </SafeAreaView>
+      <TouchableOpacity
+        style={styles.filterButton}
+        onPress={() => setShowFiltersModal(true)}
+      >
+        <Filter size={20} color="#2563eb" />
+        {getActiveFiltersCount() > 0 && (
+          <View style={styles.filterBadge}>
+            <Text style={styles.filterBadgeText}>{getActiveFiltersCount()}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    </View>
+
+    {/* Active Filters Display */}
+    {getActiveFiltersCount() > 0 && (
+      <View style={styles.activeFiltersContainer}>
+        <Text style={styles.activeFiltersTitle}>Active Filters:</Text>
+        <View style={styles.activeFiltersRow}>
+          {localFilters.search && (
+            <View style={styles.filterChip}>
+              <Text style={styles.filterChipText}>Search: {localFilters.search}</Text>
+            </View>
+          )}
+          {localFilters.user_id > 0 && (
+            <View style={styles.filterChip}>
+              <Text style={styles.filterChipText}>
+                User: {users.find(u => u.id === localFilters.user_id)?.username || 'Unknown'}
+              </Text>
+            </View>
+          )}
+          {localFilters.location_id > 0 && (
+            <View style={styles.filterChip}>
+              <Text style={styles.filterChipText}>
+                Location: {locations.find((l: any) => l.id === localFilters.location_id)?.name || 'Unknown'}
+              </Text>
+            </View>
+          )}
+          {localFilters.action && (
+            <View style={styles.filterChip}>
+              <Text style={styles.filterChipText}>Action: {localFilters.action}</Text>
+            </View>
+          )}
+          {localFilters.is_flag === true && (
+            <View style={styles.filterChip}>
+              <Text style={styles.filterChipText}>Flagged Only</Text>
+            </View>
+          )}
+          {localFilters.category && (
+            <View style={styles.filterChip}>
+              <Text style={styles.filterChipText}>Category: {localFilters.category}</Text>
+            </View>
+          )}
+          {localFilters.days > 0 && (
+            <View style={styles.filterChip}>
+              <Text style={styles.filterChipText}>Last {localFilters.days} days</Text>
+            </View>
+          )}
+          <TouchableOpacity onPress={clearAllFilters} style={styles.clearAllButton}>
+            <Text style={styles.clearAllButtonText}>Clear All</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    )}
+
+    <FlatList
+      ref={flatListRef}
+      data={filteredLogs}
+      renderItem={renderAuditLog}
+      keyExtractor={(item) => item.id.toString()}
+      extraData={expandedIds}
+      removeClippedSubviews={true}
+      maxToRenderPerBatch={10}
+      windowSize={10}
+      initialNumToRender={10}
+      updateCellsBatchingPeriod={50}
+      getItemLayout={undefined}
+      style={styles.list}
+      contentContainerStyle={styles.listContent}
+      showsVerticalScrollIndicator={false}
+      onScroll={handleScroll}
+      scrollEventThrottle={16}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+      ListEmptyComponent={
+        <View style={styles.emptyContainer}>
+          <FileText size={48} color="#d1d5db" />
+          <Text style={styles.emptyText}>
+            {isMaster ? 'No audit logs found' : 'No activity logs found'}
+          </Text>
+          <Text style={styles.emptySubtext}>
+            {isMaster 
+              ? 'System changes will appear here'
+              : 'Your inventory activities will appear here'
+            }
+          </Text>
+        </View>
+      }
+    />
+
+    {/* Filters Modal */}
+    <AuditLogFiltersModal
+      isVisible={showFiltersModal}
+      onClose={() => setShowFiltersModal(false)}
+      filters={localFilters}
+      onApplyFilters={handleApplyFilters}
+      subcategories={subcategories}
+      locations={locations}
+      users={users}
+      products={products}
+    />
+
+    {/* Scroll to Top Button */}
+    {showScrollToTop && (
+      <TouchableOpacity 
+        style={styles.scrollToTopButton}
+        onPress={scrollToTop}
+        activeOpacity={0.8}
+      >
+        <ChevronUp size={24} color="white" />
+      </TouchableOpacity>
+    )}
+  </SafeAreaView>
   );
 }
 
@@ -444,11 +694,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
   },
-  filterButtons: {
-    flexDirection: 'column',
-    gap: 6,
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
   },
-  filterButton: {
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  toggleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -459,17 +720,21 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
     backgroundColor: 'white',
   },
-  filterButtonActive: {
-    backgroundColor: '#eff6ff',
+  toggleButtonActive: {
+    backgroundColor: '#2563eb',
     borderColor: '#2563eb',
   },
-  filterButtonText: {
+  toggleButtonText: {
     fontSize: 12,
     fontWeight: '500',
     color: '#6b7280',
   },
-  filterButtonTextActive: {
-    color: '#2563eb',
+  toggleButtonTextActive: {
+    color: '#ffffff',
+  },
+  filterButtons: {
+    flexDirection: 'column',
+    gap: 6,
   },
   list: {
     flex: 1,
@@ -503,7 +768,7 @@ const styles = StyleSheet.create({
   logHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
     flexWrap: 'wrap',
   },
   actionBadge: {
@@ -714,5 +979,114 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     textAlign: 'center',
     marginTop: 8,
+  },
+  // Search and Filter Styles
+  searchContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    gap: 8,
+  },
+  searchInputContainer: {
+    flex: 1,
+  },
+  searchInput: {
+    backgroundColor: '#ffffff',
+    fontSize: 12,
+    height: 36,
+  },
+  filterButton: {
+    width: 40,
+    height: 36,
+    borderRadius: 6,
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#dc2626',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterBadgeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  activeFiltersContainer: {
+    backgroundColor: '#f9fafb',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  activeFiltersTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginBottom: 8,
+  },
+  activeFiltersRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    alignItems: 'center',
+  },
+  filterChip: {
+    backgroundColor: '#dbeafe',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#93c5fd',
+  },
+  filterChipText: {
+    fontSize: 12,
+    color: '#1d4ed8',
+    fontWeight: '500',
+  },
+  clearAllButton: {
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  clearAllButtonText: {
+    fontSize: 12,
+    color: '#dc2626',
+    fontWeight: '600',
+  },
+  scrollToTopButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#2563eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
 });

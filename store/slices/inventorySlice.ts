@@ -73,7 +73,9 @@ export const searchInventoryEntries = createAsyncThunk(
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        return rejectWithValue(error.response.data.message || 'Failed to search inventory entries');
+        const data: any = error.response.data || {};
+        const backendMessage = data?.error?.message || data?.message;
+        return rejectWithValue(backendMessage || 'Failed to search inventory entries');
       }
       return rejectWithValue('Failed to search inventory entries');
     }
@@ -105,7 +107,9 @@ export const fetchInventoryEntries = createAsyncThunk(
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        return rejectWithValue(error.response.data.message || 'Failed to fetch inventory entries');
+        const data: any = error.response.data || {};
+        const backendMessage = data?.error?.message || data?.message;
+        return rejectWithValue(backendMessage || 'Failed to fetch inventory entries');
       }
       return rejectWithValue('Failed to fetch inventory entries');
     }
@@ -128,7 +132,9 @@ export const fetchInventoryEntryById = createAsyncThunk(
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        return rejectWithValue(error.response.data.message || 'Failed to fetch inventory entry');
+        const data: any = error.response.data || {};
+        const backendMessage = data?.error?.message || data?.message;
+        return rejectWithValue(backendMessage || 'Failed to fetch inventory entry');
       }
       return rejectWithValue('Failed to fetch inventory entry');
     }
@@ -154,7 +160,9 @@ export const fetchInventoryBalance = createAsyncThunk(
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        return rejectWithValue(error.response.data.message || 'Failed to fetch inventory balance');
+        const data: any = error.response.data || {};
+        const backendMessage = data?.error?.message || data?.message;
+        return rejectWithValue(backendMessage || 'Failed to fetch inventory balance');
       }
       return rejectWithValue('Failed to fetch inventory balance');
     }
@@ -182,7 +190,9 @@ export const fetchUserEntries = createAsyncThunk(
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        return rejectWithValue(error.response.data.message || 'Failed to fetch user inventory entries');
+        const data: any = error.response.data || {};
+        const backendMessage = data?.error?.message || data?.message;
+        return rejectWithValue(backendMessage || 'Failed to fetch user inventory entries');
       }
       return rejectWithValue('Failed to fetch user inventory entries');
     }
@@ -205,7 +215,9 @@ export const createInventoryEntry = createAsyncThunk(
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        return rejectWithValue(error.response.data.message || 'Failed to create inventory entry');
+        const data: any = error.response.data || {};
+        const backendMessage = data?.error?.message || data?.message;
+        return rejectWithValue(backendMessage || 'Failed to create inventory entry');
       }
       return rejectWithValue('Failed to create inventory entry');
     }
@@ -227,7 +239,9 @@ export const updateInventoryEntry = createAsyncThunk(
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        return rejectWithValue(error.response.data.message || 'Failed to update inventory entry');
+        const data: any = error.response.data || {};
+        const backendMessage = data?.error?.message || data?.message;
+        return rejectWithValue(backendMessage || 'Failed to update inventory entry');
       }
       return rejectWithValue('Failed to update inventory entry');
     }
@@ -250,7 +264,9 @@ export const deleteInventoryEntry = createAsyncThunk(
       return id;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        return rejectWithValue(error.response.data.message || 'Failed to delete inventory entry');
+        const data: any = error.response.data || {};
+        const backendMessage = data?.error?.message || data?.message;
+        return rejectWithValue(backendMessage || 'Failed to delete inventory entry');
       }
       return rejectWithValue('Failed to delete inventory entry');
     }

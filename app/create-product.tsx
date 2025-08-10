@@ -76,7 +76,7 @@ export default function CreateProduct() {
         text1: 'Success',
         text2: 'Product created successfully',
       });
-      router.back();
+      router.replace({ pathname: '/(shared)/products', params: { refreshAll: '1' } });
     } catch (error: any) {
       Toast.show({
         type: 'error',

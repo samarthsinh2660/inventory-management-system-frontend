@@ -24,6 +24,8 @@ export function ProductFiltersModal({
   subcategories,
   locations,
   formulas,
+  purchaseInfos,
+  products,
 }: ProductFiltersModalProps) {
   const [tempFilters, setTempFilters] = useState<ProductFiltersState>(filters);
 
@@ -44,6 +46,8 @@ export function ProductFiltersModal({
       location_id: 0,
       source_type: '',
       formula_id: 0,
+      component_id: 0,
+      purchase_info_id: 0,
     };
     setTempFilters(resetFilters);
   };
@@ -200,6 +204,52 @@ export function ProductFiltersModal({
                     key={formula.id}
                     label={formula.name}
                     value={formula.id}
+                  />
+                ))}
+              </Picker>
+            </View>
+          </View>
+
+          {/* Component Filter */}
+          <View style={styles.filterSection}>
+            <Text style={styles.filterLabel}>Component</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={tempFilters.component_id}
+                onValueChange={(value: number) =>
+                  setTempFilters((prev: ProductFiltersState) => ({ ...prev, component_id: Number(value) }))
+                }
+                style={styles.picker}
+              >
+                <Picker.Item label="All Components" value={0} />
+                {products.map((product) => (
+                  <Picker.Item
+                    key={product.id}
+                    label={product.name}
+                    value={product.id}
+                  />
+                ))}
+              </Picker>
+            </View>
+          </View>
+
+          {/* Supplier Filter */}
+          <View style={styles.filterSection}>
+            <Text style={styles.filterLabel}>Supplier</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={tempFilters.purchase_info_id}
+                onValueChange={(value: number) =>
+                  setTempFilters((prev: ProductFiltersState) => ({ ...prev, purchase_info_id: Number(value) }))
+                }
+                style={styles.picker}
+              >
+                <Picker.Item label="All Suppliers" value={0} />
+                {purchaseInfos.map((supplier) => (
+                  <Picker.Item
+                    key={supplier.id}
+                    label={supplier.business_name}
+                    value={supplier.id}
                   />
                 ))}
               </Picker>

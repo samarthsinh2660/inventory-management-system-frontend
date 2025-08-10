@@ -1,18 +1,23 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { API_URL } from '../../utils/constant';
-import { AuditLog, AuditLogsState, FetchAuditLogsParams, DeleteLogParams, FlagLogParams, FlagLogResponse} from '@/types/log';
-import { ApiResponse } from '@/types/inventory';
+import { AuditLog, AuditLogsState, FetchAuditLogsParams, DeleteLogParams, FlagLogParams, FlagLogResponse, AuditLogsApiResponse, AuditLogFilters} from '@/types/log';
 import { getAuthHeader } from '@/utils/authHelper';
 
 const initialState: AuditLogsState = {
   list: [],
   selected: null,
   loading: false,
+  loadingMore: false,
   error: null,
+  hasMore: true,
+  filters: {
+    page: 1,
+    limit: 50
+  },
   meta: {
     page: 1,
-    limit: 10,
+    limit: 50,
     total: 0,
     pages: 0
   }
@@ -32,18 +37,33 @@ export const fetchAuditLogs = createAsyncThunk(
       }
       
       const queryParams = new URLSearchParams();
-      if (params.entry_id) queryParams.append('entry_id', params.entry_id.toString());
-      if (params.action) queryParams.append('action', params.action);
+      
+      // Add all filter parameters
+      if (params.search) {
+        // Handle reference ID search with REF= prefix
+        if (params.search.startsWith('REF=')) {
+          queryParams.append('search', params.search);
+        } else {
+          queryParams.append('search', params.search);
+        }
+      }
       if (params.user_id) queryParams.append('user_id', params.user_id.toString());
-      if (params.start_date) queryParams.append('start_date', params.start_date);
-      if (params.end_date) queryParams.append('end_date', params.end_date);
+      if (params.location_id) queryParams.append('location_id', params.location_id.toString());
+      if (params.action) queryParams.append('action', params.action);
+      if (params.is_flag !== undefined) queryParams.append('is_flag', params.is_flag.toString());
+      if (params.reference_id) queryParams.append('reference_id', params.reference_id);
+      if (params.category) queryParams.append('category', params.category);
+      if (params.subcategory_id) queryParams.append('subcategory_id', params.subcategory_id.toString());
+      if (params.product_id) queryParams.append('product_id', params.product_id.toString());
+      if (params.date_from) queryParams.append('date_from', params.date_from);
+      if (params.date_to) queryParams.append('date_to', params.date_to);
+      if (params.days) queryParams.append('days', params.days.toString());
       if (params.page) queryParams.append('page', params.page.toString());
       if (params.limit) queryParams.append('limit', params.limit.toString());
-      if (params.is_flag !== undefined) queryParams.append('is_flag', params.is_flag.toString());
 
       const query = queryParams.toString() ? `?${queryParams.toString()}` : '';
-      const response = await axios.get<ApiResponse<AuditLog[]>>(`${API_URL}/audit-logs${query}`, getAuthHeader(token));
-      return response.data;
+      const response = await axios.get<AuditLogsApiResponse>(`${API_URL}/audit-logs${query}`, getAuthHeader(token));
+      return { ...response.data, loadMore: params.loadMore };
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
         return rejectWithValue(error.response.data.message || 'Failed to fetch audit logs');
@@ -65,7 +85,7 @@ export const fetchAuditLogById = createAsyncThunk(
         throw new Error('Authentication required');
       }
       
-      const response = await axios.get<ApiResponse<AuditLog>>(`${API_URL}/audit-logs/${id}`, getAuthHeader(token));
+      const response = await axios.get<{ success: boolean; data: AuditLog; message: string }>(`${API_URL}/audit-logs/${id}`, getAuthHeader(token));
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
@@ -88,7 +108,7 @@ export const fetchLogsByRecordType = createAsyncThunk(
         throw new Error('Authentication required');
       }
       
-      const response = await axios.get<ApiResponse<AuditLog[]>>(`${API_URL}/audit-logs/record-type/${recordType}`, getAuthHeader(token));
+      const response = await axios.get<AuditLogsApiResponse>(`${API_URL}/audit-logs/record-type/${recordType}`, getAuthHeader(token));
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
@@ -161,23 +181,57 @@ const auditLogsSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
+    setFilters: (state, action) => {
+      state.filters = { ...state.filters, ...action.payload };
+    },
+    resetFilters: (state) => {
+      state.filters = {
+        page: 1,
+        limit: 50
+      };
+      state.list = [];
+      state.hasMore = true;
+    },
+    resetList: (state) => {
+      state.list = [];
+      state.hasMore = true;
+      state.filters.page = 1;
+    },
   },
   extraReducers: (builder) => {
     builder
       // Fetch all audit logs
-      .addCase(fetchAuditLogs.pending, (state) => {
-        state.loading = true;
+      .addCase(fetchAuditLogs.pending, (state, action) => {
+        if (action.meta.arg.loadMore) {
+          state.loadingMore = true;
+        } else {
+          state.loading = true;
+        }
         state.error = null;
       })
       .addCase(fetchAuditLogs.fulfilled, (state, action) => {
         state.loading = false;
-        state.list = action.payload.data;
+        state.loadingMore = false;
+        
+        if (action.payload.loadMore) {
+          // Append new logs for lazy loading
+          state.list = [...state.list, ...action.payload.data];
+        } else {
+          // Replace logs for new search/filter
+          state.list = action.payload.data;
+        }
+        
         if (action.payload.meta) {
           state.meta = action.payload.meta;
+          // Check if there are more pages to load
+          state.hasMore = action.payload.meta.page < action.payload.meta.pages;
+          // Update current page in filters
+          state.filters.page = action.payload.meta.page;
         }
       })
       .addCase(fetchAuditLogs.rejected, (state, action) => {
         state.loading = false;
+        state.loadingMore = false;
         state.error = action.payload as string || 'Failed to fetch audit logs';
       })
 
@@ -252,5 +306,5 @@ const auditLogsSlice = createSlice({
   },
 });
 
-export const { setSelectedLog, clearSelectedLog, clearError } = auditLogsSlice.actions;
+export const { setSelectedLog, clearSelectedLog, clearError, setFilters, resetFilters, resetList } = auditLogsSlice.actions;
 export default auditLogsSlice.reducer;

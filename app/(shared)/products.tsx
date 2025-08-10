@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Plus, Filter, X, Package, ChevronUp } from 'lucide-react-native';
 import { Picker } from '@react-native-picker/picker';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { IfMaster } from '../../components/IfMaster';
@@ -12,21 +12,25 @@ import { fetchProducts, fetchProductById } from '../../store/slices/productsSlic
 import { fetchSubcategories } from '../../store/slices/subcategoriesSlice';
 import { fetchLocations } from '../../store/slices/locationsSlice';
 import { fetchFormulas } from '../../store/slices/formulasSlice';
+import { fetchPurchaseInfo } from '../../store/slices/purchaseInfoSlice';
 import { fetchInventoryBalance } from '../../store/slices/inventorySlice';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ProductFiltersModal } from '@/components/modals/ProductFiltersModal';
 import { CustomSearchBar } from '@/components/CustomSearchBar';
+import { useDebounce } from '../../utils/helperFunctions';
 import ProductDetailsModal from '../../components/modals/ProductDetailsModal';
-import { Product, FilterState, ProductCategory, ProductSourceType } from '@/types/product';
+import { Product, FilterState, ProductCategory, ProductSourceType, ProductSearchParams } from '@/types/product';
 import { UserRole } from '@/types/user';
 
 export default function Products() {
   const router = useRouter();
+  const { refreshAll } = useLocalSearchParams<{ refreshAll?: string }>();
   const dispatch = useAppDispatch();
-  const { list: products, loading } = useAppSelector(state => state.products);
+  const { list: products, loading, meta } = useAppSelector(state => state.products);
   const subcategories = useAppSelector(state => state.subcategories.list);
   const locations = useAppSelector(state => state.locations.list);
   const formulas = useAppSelector(state => state.formulas.list);
+  const purchaseInfos = useAppSelector(state => state.purchaseInfo.list);
   const inventoryBalance = useAppSelector(state => state.inventory.balance);
   const user = useAppSelector(state => state.auth.user);
   
@@ -37,6 +41,8 @@ export default function Products() {
   const [showProductDetails, setShowProductDetails] = useState(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
   const flatListRef = useRef<FlatList<Product>>(null);
+  const didProcessRefreshRef = useRef(false);
+  const skipDefaultFetchOnceRef = useRef(false);
   
   const [filters, setFilters] = useState<FilterState>({
     category: '',
@@ -44,12 +50,17 @@ export default function Products() {
     location_id: 0,
     source_type: '',
     formula_id: 0,
+    component_id: 0,
+    purchase_info_id: 0,
   });
 
   const [quickFilters, setQuickFilters] = useState({
     category: '',
     subcategory_id: 0,
   });
+
+  // Debounce search term for API calls
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
   const isMaster = user?.role === UserRole.MASTER;
 
@@ -85,62 +96,49 @@ export default function Products() {
       return subcategories; // Return all subcategories if no category is selected
     }
     
-    // Get unique subcategory IDs that are used by products in the selected category
-    const categoryProductSubcategoryIds = new Set(
-      products
-        .filter(product => product.category === selectedCategory)
-        .map(product => product.subcategory_id)
-    );
-    
-    // Return only subcategories that are actually used by products in this category
+    // Filter subcategories by category
     return subcategories.filter(subcategory => 
-      categoryProductSubcategoryIds.has(subcategory.id)
+      subcategory.category === selectedCategory
     );
   };
 
-  const applyFilters = (product: Product) => {
-    // Search term filter
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.category.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    if (!matchesSearch) return false;
-
-    // Combined filters (both detailed and quick filters)
+  // Build search parameters for API call
+  const buildSearchParams = (): ProductSearchParams => {
     const allFilters = {
       category: filters.category || quickFilters.category,
       subcategory_id: filters.subcategory_id || quickFilters.subcategory_id,
       location_id: filters.location_id,
       source_type: filters.source_type,
       formula_id: filters.formula_id,
+      component_id: filters.component_id,
+      purchase_info_id: filters.purchase_info_id,
     };
 
+    const params: ProductSearchParams = {
+      page: 1,
+      limit: 50,
+    };
 
+    if (debouncedSearchTerm) params.search = debouncedSearchTerm;
+    if (allFilters.category) params.category = allFilters.category as ProductCategory;
+    if (allFilters.subcategory_id) params.subcategory_id = Number(allFilters.subcategory_id);
+    if (allFilters.location_id) params.location_id = Number(allFilters.location_id);
+    if (allFilters.source_type) params.source_type = allFilters.source_type as ProductSourceType;
+    if (allFilters.formula_id) params.formula_id = Number(allFilters.formula_id);
+    if (allFilters.component_id) params.component_id = Number(allFilters.component_id);
+    if (allFilters.purchase_info_id) params.purchase_info_id = Number(allFilters.purchase_info_id);
 
-    // Category filter
-    if (allFilters.category && product.category !== allFilters.category) return false;
-    
-    // Subcategory filter - convert to number for comparison
-    if (allFilters.subcategory_id && product.subcategory_id !== Number(allFilters.subcategory_id)) return false;
-    
-    // Location filter - convert to number for comparison
-    if (allFilters.location_id && product.location_id !== Number(allFilters.location_id)) return false;
-    
-    // Source type filter
-    if (allFilters.source_type && product.source_type !== allFilters.source_type) return false;
-    
-    // Formula filter - convert to number for comparison
-    if (allFilters.formula_id && product.product_formula_id !== Number(allFilters.formula_id)) return false;
-
-    return true;
+    return params;
   };
 
-  const filteredProducts = products.filter(applyFilters);
+  // Use products directly from Redux store (no client-side filtering)
+  const filteredProducts = products;
 
   const activeFiltersCount = Object.values(filters).filter(value => 
     value !== '' && value !== 0
   ).length + Object.values(quickFilters).filter(value => 
     value !== '' && value !== 0
-  ).length;
+  ).length + (debouncedSearchTerm ? 1 : 0);
 
   const clearAllFilters = () => {
     setFilters({
@@ -149,11 +147,14 @@ export default function Products() {
       location_id: 0,
       source_type: '',
       formula_id: 0,
+      component_id: 0,
+      purchase_info_id: 0,
     });
     setQuickFilters({
       category: '',
       subcategory_id: 0,
     });
+    setSearchTerm('');
   };
 
   const setQuickFilter = (sourceType: string) => {
@@ -169,17 +170,19 @@ export default function Products() {
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
+      const searchParams = buildSearchParams();
       await Promise.all([
-        dispatch(fetchProducts({ page: 1, limit: 100 })),
+        dispatch(fetchProducts(searchParams)),
         dispatch(fetchSubcategories()),
         dispatch(fetchLocations()),
         dispatch(fetchFormulas()),
+        dispatch(fetchPurchaseInfo()),
         dispatch(fetchInventoryBalance()),
       ]);
     } finally {
       setRefreshing(false);
     }
-  }, [dispatch]);
+  }, [dispatch, debouncedSearchTerm, filters, quickFilters]);
 
   const handleProductUpdated = React.useCallback(async () => {
     // Refresh the products list and inventory
@@ -208,8 +211,45 @@ export default function Products() {
   }, [dispatch, selectedProduct, getProductStock, getProductTotalValue]);
 
   useEffect(() => {
-    onRefresh();
-  }, []);
+    dispatch(fetchSubcategories());
+    dispatch(fetchLocations());
+    dispatch(fetchFormulas());
+    dispatch(fetchPurchaseInfo());
+    dispatch(fetchInventoryBalance());
+  }, [dispatch]);
+
+  useEffect(() => {
+    // If we are expecting a full refresh via refreshAll, skip this default fetch once
+    if (refreshAll === '1' && !didProcessRefreshRef.current) return;
+    if (skipDefaultFetchOnceRef.current) {
+      skipDefaultFetchOnceRef.current = false;
+      return;
+    }
+    const searchParams = buildSearchParams();
+    dispatch(fetchProducts(searchParams));
+  }, [dispatch, debouncedSearchTerm, filters, quickFilters]);
+
+  // If navigated with refreshAll=1 (after creating a product), clear filters/search and fetch full list once
+  useEffect(() => {
+    if (refreshAll === '1' && !didProcessRefreshRef.current) {
+      didProcessRefreshRef.current = true;
+      // We'll clear local filters/search which would normally trigger the default fetch.
+      // Mark to skip the next default fetch so only the explicit 100-limit fetch runs.
+      skipDefaultFetchOnceRef.current = true;
+      setFilters({
+        category: '',
+        subcategory_id: 0,
+        location_id: 0,
+        source_type: '',
+        formula_id: 0,
+        component_id: 0,
+        purchase_info_id: 0,
+      });
+      setQuickFilters({ category: '', subcategory_id: 0 });
+      setSearchTerm('');
+      dispatch(fetchProducts({ page: 1, limit: 100 }));
+    }
+  }, [refreshAll, dispatch]);
 
   const renderProduct = ({ item }: { item: Product }) => {
     const currentStock = getProductStock(item.id);
@@ -316,8 +356,16 @@ export default function Products() {
     );
   };
 
-  // Header Component for FlatList
-  const renderHeader = () => (
+  // Categories definition for dropdowns
+  const categories = [
+    { label: 'All Categories', value: '' },
+    { label: 'Raw Materials', value: ProductCategory.RAW },
+    { label: 'Finished Products', value: ProductCategory.FINISHED },
+    { label: 'Semi-Finished Products', value: ProductCategory.SEMI },
+  ];
+
+  // Memoized header component to prevent re-renders and maintain TextInput focus
+  const renderHeader = useMemo(() => (
     <View style={styles.headerComponent}>
       {/* Search Bar Section */}
       <View style={styles.searchContainer}>
@@ -434,22 +482,7 @@ export default function Products() {
         </View>
       </View>
     </View>
-  );
-
-  if (loading && !refreshing) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <LoadingSpinner />
-      </SafeAreaView>
-    );
-  }
-
-  const categories = [
-    { label: 'All Categories', value: '' },
-    { label: 'Raw Materials', value: ProductCategory.RAW },
-    { label: 'Finished Products', value: ProductCategory.FINISHED },
-    { label: 'Semi-Finished Products', value: ProductCategory.SEMI },
-  ];
+  ), [searchTerm, activeFiltersCount, quickFilters, filters, categories, subcategories, getFilteredSubcategories, handleSearchChange, setSearchTerm, setShowFilters, setQuickFilters, setQuickFilter, clearAllFilters]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -472,7 +505,16 @@ export default function Products() {
         </IfMaster>
       </View>
 
-      {/* FlatList with Header Component */}
+      {/* Search bar now back in FlatList header with useMemo to prevent focus loss */}
+
+      {/* Non-blocking loading overlay to keep inputs mounted */}
+      {loading && !refreshing && (
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <LoadingSpinner />
+        </View>
+      )}
+
+      {/* FlatList with memoized scrollable header */}
       <FlatList
         ref={flatListRef}
         data={filteredProducts}
@@ -526,9 +568,11 @@ export default function Products() {
         onClose={() => setShowFilters(false)}
         filters={filters}
         onApplyFilters={setFilters}
-        subcategories={getFilteredSubcategories(filters.category)}
+        subcategories={subcategories}
         locations={locations}
         formulas={formulas}
+        purchaseInfos={purchaseInfos}
+        products={products}
       />
 
       <ProductDetailsModal
@@ -1049,5 +1093,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#ef4444',
     fontWeight: '600',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
 });
