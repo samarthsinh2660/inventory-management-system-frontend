@@ -131,7 +131,6 @@ export default function Alerts() {
         </View>
         <View style={styles.alertContent}>
           <Text style={styles.productName}>{item.product_name}</Text>
-          <Text style={styles.location}>{item.location_name}</Text>
         </View>
         {!item.is_read && (
           <TouchableOpacity
@@ -152,9 +151,10 @@ export default function Alerts() {
         </Text>
       </View>
       
-      <Text style={styles.alertDate}>
-        {new Date(item.created_at).toLocaleString()}
-      </Text>
+      <View style={styles.alertFooter}>
+        <Text style={styles.location}>{item.location_name}</Text>
+        <Text style={styles.alertDate}>{new Date(item.created_at).toLocaleString()}</Text>
+      </View>
     </View>
   );
 
@@ -307,10 +307,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   productName: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: '#1f2937',
-    lineHeight: 18,
+    lineHeight: 22,
   },
   location: {
     fontSize: 12,
@@ -354,6 +354,12 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     textAlign: 'right',
     marginTop: 2,
+  },
+  alertFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
   },
   emptyContainer: {
     flex: 1,

@@ -107,22 +107,10 @@ export default function Dashboard() {
       disabled={!onPress}
     >
       <View style={styles.statHeader}>
-        <View style={[styles.iconContainer, { backgroundColor: `${color}15` }]}>
+        <View style={[styles.iconContainer, { backgroundColor: `${color}15` }]}> 
           {icon}
         </View>
-        {trend && (
-          <View style={[
-            styles.trendBadge, 
-            { backgroundColor: trend === 'up' ? '#dcfce7' : trend === 'down' ? '#fef2f2' : '#f3f4f6' }
-          ]}>
-            <Text style={[
-              styles.trendText, 
-              { color: trend === 'up' ? '#16a34a' : trend === 'down' ? '#dc2626' : '#6b7280' }
-            ]}>
-              {trend === 'up' ? '↗' : trend === 'down' ? '↘' : '→'}
-            </Text>
-          </View>
-        )}
+        {/* Removed side arrow indicator */}
       </View>
       <View style={styles.statContent}>
         <Text style={[styles.statValue, size === 'large' && styles.largeStatValue]} numberOfLines={1} adjustsFontSizeToFit>
@@ -148,6 +136,14 @@ export default function Dashboard() {
     );
   }
 
+  // Formatter: Indian compact units (K, Lakh, Cr)
+  const formatAmountIndian = (num: number) => {
+    if (num >= 1e7) return `${(num / 1e7).toFixed(num % 1e7 === 0 ? 0 : 2).replace(/\.00$/, '')} Cr`;
+    if (num >= 1e5) return `${(num / 1e5).toFixed(num % 1e5 === 0 ? 0 : 2).replace(/\.00$/, '')} Lakh`;
+    if (num >= 1e3) return `${(num / 1e3).toFixed(num % 1e3 === 0 ? 0 : 2).replace(/\.00$/, '')} K`;
+    return Math.round(num).toLocaleString('en-IN');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView 
@@ -157,22 +153,11 @@ export default function Dashboard() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Header: Only big welcome text */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.greeting} numberOfLines={1} adjustsFontSizeToFit>
-              {isMaster ? 'Master Dashboard' : 'Employee Dashboard'}
-            </Text>
-            <Text style={styles.welcomeText} numberOfLines={1}>
               Welcome back, {user?.username}!
-            </Text>
-            <Text style={styles.role} numberOfLines={1}>
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
             </Text>
           </View>
           <IfMaster>
@@ -205,7 +190,7 @@ export default function Dashboard() {
               />
               <StatCard
                 title="Inventory Value"
-                value={`₹${totalValue.toLocaleString()}`}
+                value={`₹${formatAmountIndian(totalValue)}`}
                 subtitle="Total stock value"
                 icon={<BarChart3 size={24} color="#10b981" />}
                 color="#10b981"

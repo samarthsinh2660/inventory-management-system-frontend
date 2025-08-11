@@ -387,7 +387,10 @@ export default function InventoryScreen() {
 
     return (
       <TouchableOpacity 
-        style={styles.entryItem}
+        style={[
+          styles.entryItem,
+          { borderLeftWidth: 4, borderLeftColor: getEntryTypeColor(entry.entry_type) }
+        ]}
         onPress={() => {
           setSelectedEntry(entry);
           setShowEntryDetails(true);
@@ -552,13 +555,12 @@ export default function InventoryScreen() {
 
                 {selectedProduct && (
                   <View style={styles.productInfo}>
-                    <Text style={styles.productInfoTitle}>{selectedProduct.name || 'Unknown Product'} - Current Stock</Text>
-                    <View style={styles.stockInfo}>
-                      <Text style={styles.stockText}>Available: {selectedProductStock || 0} {selectedProduct.unit || 'units'}</Text>
-                      <Text style={styles.stockText}>
-                        Min Required: {selectedProduct.min_stock_threshold || 0} {selectedProduct.unit || 'units'}
-                      </Text>
-                    </View>
+                    <Text style={styles.stockText}>
+                      {(selectedProduct.name || 'Unknown Product')} — Avail: {selectedProductStock || 0}
+                      {selectedProduct.unit && selectedProduct.unit.toLowerCase() !== 'no.' ? ` ${selectedProduct.unit}` : ''},
+                      {' '}Min: {selectedProduct.min_stock_threshold || 0}
+                      {selectedProduct.unit && selectedProduct.unit.toLowerCase() !== 'no.' ? ` ${selectedProduct.unit}` : ''}
+                    </Text>
                   </View>
                 )}
 
