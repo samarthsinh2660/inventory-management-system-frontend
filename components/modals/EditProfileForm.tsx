@@ -330,8 +330,11 @@ const styles = StyleSheet.create({
   formContainer: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
-    padding: 20,
+    padding: 30,
     marginBottom: 0,
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,

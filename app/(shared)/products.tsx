@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Plus, Filter, X, Package, ChevronUp } from 'lucide-react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -485,7 +484,7 @@ export default function Products() {
   ), [searchTerm, activeFiltersCount, quickFilters, filters, categories, subcategories, getFilteredSubcategories, handleSearchChange, setSearchTerm, setShowFilters, setQuickFilters, setQuickFilter, clearAllFilters]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Fixed Header */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
@@ -592,7 +591,7 @@ export default function Products() {
           <ChevronUp size={24} color="white" />
         </TouchableOpacity>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -986,7 +985,7 @@ const styles = StyleSheet.create({
   scrollToTopButton: {
     position: 'absolute',
     bottom: 20,
-    left: 20,
+    right: 20,
     width: 50,
     height: 50,
     borderRadius: 25,

@@ -9,6 +9,7 @@ import { CreateUserModal } from '../../components/modals/CreateUserModal';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import Toast from 'react-native-toast-message';
 import { User } from '@/types/user';
+import { displayUsername } from '@/utils/userUtils';
 
 export default function Users() {
   const dispatch = useAppDispatch();
@@ -40,9 +41,10 @@ export default function Users() {
       return;
     }
 
+    const displayName = displayUsername(username);
     Alert.alert(
       'Delete User',
-      `Are you sure you want to delete user "${username}"? This action cannot be undone.`,
+      `Are you sure you want to delete user "${displayName}"? This action cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -80,7 +82,7 @@ export default function Users() {
           )}
         </View>
         <View style={styles.userInfo}>
-          <Text style={styles.username}>{item.username}</Text>
+          <Text style={styles.username}>{displayUsername(item.username)}</Text>
           <Text style={styles.role}>
             {item.role === 'master' ? 'Master User' : 'Employee'}
           </Text>

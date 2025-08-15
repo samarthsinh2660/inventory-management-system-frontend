@@ -11,6 +11,7 @@ import { createUser, fetchUsers } from '../../store/slices/usersSlice';
 import Toast from 'react-native-toast-message';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { CreateUserData, UserRole, CreateUserModalProps, HandleSubmitProps } from '@/types/user';
+import { extractFactoryName } from '@/utils/userUtils';
 
 const validationSchema = Yup.object({
   name: Yup.string().required('Name is required'),
@@ -26,6 +27,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
 }) => {
   const dispatch = useAppDispatch();
   const { user: currentUser } = useAppSelector(state => state.auth);
+  const factoryName = extractFactoryName(currentUser?.username || '');
 
   // Determine if this is a sign-up or user creation based on if there's a current user
   const isUserCreation = !!currentUser;
@@ -108,7 +110,17 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 error={touched.username && !!errors.username}
                 style={styles.input}
                 autoCapitalize="none"
+                placeholder={factoryName ? `Enter username (no @${factoryName} needed)` : 'Enter username (no @factory needed)'}
               />
+              {factoryName ? (
+                <Text style={styles.hintText}>
+                  Full login will be {values.username || 'username'}@{factoryName}. No need to type the @factory part here.
+                </Text>
+              ) : (
+                <Text style={styles.hintText}>
+                  No need to include the @factory part while creating a user.
+                </Text>
+              )}
               {touched.username && errors.username && (
                 <Text style={styles.errorText}>{errors.username}</Text>
               )}
@@ -234,6 +246,11 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontSize: 12,
     marginTop: -12,
+  },
+  hintText: {
+    color: '#6b7280',
+    fontSize: 12,
+    marginTop: -8,
   },
   switchContainer: {
     flexDirection: 'row',

@@ -39,12 +39,15 @@ export interface UpdateProfileData {
     username?: string;
   }
 
+
+
 export interface TokenData {
     id: number;
     is_master: boolean;
     email?: string;
     username?: string;
     name?: string;
+    factory_db?: string;
     iat?: number;
     exp?: number;
   }

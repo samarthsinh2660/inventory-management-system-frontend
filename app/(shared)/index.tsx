@@ -18,6 +18,7 @@ import {
   getInStockProductsCount, 
   getEntryCountsByType 
 } from '../../utils/helperFunctions';
+import { getUserDisplayName } from '@/utils/userUtils';
 import { UserRole, User } from '@/types/user';
 import { Notification } from '@/types/alerts';
 
@@ -56,18 +57,37 @@ export default function Dashboard() {
       
       // For masters, first check for new alerts before fetching notifications
       if (isMaster) {
-        await dispatch(checkAlerts());
+        try {
+          await dispatch(checkAlerts());
+        } catch (error) {
+          console.warn('Failed to check alerts:', error);
+        }
       }
       
-      await Promise.all([
-        dispatch(fetchProducts(dashboardParams)),
-        dispatch(fetchInventoryEntries(dashboardParams)),
-        dispatch(fetchInventoryBalance()),
-        !isMaster && dispatch(fetchUserEntries(dashboardParams)),
-        isMaster && dispatch(fetchAlerts({})),
-        isMaster && dispatch(fetchNotifications()),
-        isMaster && dispatch(fetchUsers()),
-      ].filter(Boolean));
+      // Execute API calls with individual error handling
+      const apiCalls = [
+        { name: 'Products', call: () => dispatch(fetchProducts(dashboardParams)) },
+        { name: 'Inventory Entries', call: () => dispatch(fetchInventoryEntries(dashboardParams)) },
+        { name: 'Inventory Balance', call: () => dispatch(fetchInventoryBalance()) },
+        !isMaster && { name: 'User Entries', call: () => dispatch(fetchUserEntries(dashboardParams)) },
+        isMaster && { name: 'Alerts', call: () => dispatch(fetchAlerts({})) },
+        isMaster && { name: 'Notifications', call: () => dispatch(fetchNotifications()) },
+        isMaster && { name: 'Users', call: () => dispatch(fetchUsers()) },
+      ].filter(Boolean);
+
+      // Execute all API calls with individual error handling
+      await Promise.allSettled(
+        apiCalls.map(async (apiCall: any) => {
+          try {
+            return await apiCall.call();
+          } catch (error) {
+            return null;
+          }
+        })
+      );
+
+    } catch (error) {
+      // Silently handle refresh errors
     } finally {
       setRefreshing(false);
     }
@@ -128,7 +148,18 @@ export default function Dashboard() {
     </TouchableOpacity>
   );
 
-  if (!products.length && !refreshing) {
+
+
+  // Only show loading spinner if we're actively loading AND have no data
+  // Remove the products.length check since API calls are successful but products might be empty
+  const anyLoading = useAppSelector(state => 
+    state.products.loading || 
+    state.inventory.loading || 
+    state.users.loading || 
+    state.alerts.loading
+  );
+
+  if (anyLoading && !refreshing) {
     return (
       <SafeAreaView style={styles.container}>
         <LoadingSpinner />
@@ -156,8 +187,9 @@ export default function Dashboard() {
         {/* Header: Only big welcome text */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.greeting} numberOfLines={1} adjustsFontSizeToFit>
-              Welcome back, {user?.username}!
+            <Text style={styles.greeting}>Welcome back</Text>
+            <Text style={styles.usernameText} numberOfLines={1} adjustsFontSizeToFit>
+              {user ? getUserDisplayName(user) : 'User'}!
             </Text>
           </View>
           <IfMaster>
@@ -355,15 +387,21 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   greeting: {
-    fontSize: isTablet ? 32 : 24,
+    fontSize: isTablet ? 26 : 20,
     fontWeight: '800',
     color: '#1f2937',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   welcomeText: {
     fontSize: 16,
     color: '#2563eb',
     fontWeight: '600',
+    marginBottom: 2,
+  },
+  usernameText: {
+    fontSize: isTablet ? 24 : 18,
+    fontWeight: '800',
+    color: '#2563eb',
     marginBottom: 2,
   },
   role: {

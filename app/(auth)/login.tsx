@@ -13,7 +13,9 @@ import Toast from 'react-native-toast-message';
 import { UserRole } from '@/types/user';
 
 const validationSchema = Yup.object({
-  username: Yup.string().required('Username is required'),
+  username: Yup.string()
+    .required('Username is required')
+    .matches(/^[^@]+@[^@]+$/, 'Username must be in format: username@factory_name'),
   password: Yup.string().required('Password is required'),
 });
 
@@ -86,6 +88,7 @@ export default function Login() {
               <View style={styles.form}>
                 <TextInput
                   label="Username"
+                  placeholder="your_username@factory_name"
                   value={values.username}
                   onChangeText={handleChange('username')}
                   onBlur={handleBlur('username')}

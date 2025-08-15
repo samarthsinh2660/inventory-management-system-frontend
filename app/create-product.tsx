@@ -15,6 +15,7 @@ import { fetchLocations } from '../store/slices/locationsSlice';
 import { fetchFormulas } from '../store/slices/formulasSlice';
 import { fetchPurchaseInfo } from '../store/slices/purchaseInfoSlice';
 import { ProductCategory } from '../types/product';
+import { UserRole } from '../types/user';
 import { CreateSubcategoryModal } from '../components/modals/CreateSubcategoryModal';
 import { CreateLocationModal } from '../components/modals/CreateLocationModal';
 import { CreateFormulaModal } from '../components/modals/CreateFormulaModal';
@@ -40,6 +41,7 @@ export default function CreateProduct() {
   const locations = useAppSelector(state => state.locations.list);
   const formulas = useAppSelector(state => state.formulas.list);
   const suppliers = useAppSelector(state => state.purchaseInfo.list);
+  const userRole = useAppSelector(state => state.auth.user?.role);
   
   const [showSubcategoryModal, setShowSubcategoryModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -76,7 +78,14 @@ export default function CreateProduct() {
         text1: 'Success',
         text2: 'Product created successfully',
       });
-      router.replace({ pathname: '/(shared)/products', params: { refreshAll: '1' } });
+      // Navigate back to products page within the correct tab navigator
+      if (userRole === UserRole.MASTER) {
+        router.replace('/(master)/products?refreshAll=1');
+      } else if (userRole === UserRole.EMPLOYEE) {
+        router.replace('/(employee)/products?refreshAll=1');
+      } else {
+        router.replace('/(shared)/products?refreshAll=1');
+      }
     } catch (error: any) {
       Toast.show({
         type: 'error',

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Settings as SettingsIcon, User, Users, LogOut, Shield, Bell, Info, ChevronRight, TriangleAlert as AlertTriangle, TestTube, FileText, MapPin, ArrowLeft } from 'lucide-react-native';
@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
 import { IfMaster } from '../../components/IfMaster';
-import { logout, clearAuth } from '../../store/slices/authSlice';
+import { logout, clearAuth, getProfile } from '../../store/slices/authSlice';
 import { EditProfileForm } from '../../components/modals/EditProfileForm';
 import { LocationsList } from '../../components/product/LocationsList';
 import { CreateLocationModal } from '../../components/modals/CreateLocationModal';
@@ -29,12 +29,27 @@ export default function Settings() {
   const [showLocationManagement, setShowLocationManagement] = useState(false);
   const [showCreateLocation, setShowCreateLocation] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
 
   const { width: screenWidth } = Dimensions.get('window');
   const isMobileWidth = screenWidth < 768; // Consider mobile if width < 768px
   const isMaster = user?.role === UserRole.MASTER;
 
   const unresolvedAlertsCount = notifications.filter((notification: Notification) => !notification.is_read).length;
+
+  // Fetch fresh profile data when Settings loads
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        await dispatch(getProfile()).unwrap();
+        setProfileLoaded(true);
+      } catch (error) {
+        console.error('Failed to load profile:', error);
+        setProfileLoaded(true); // Still show UI even if profile load fails
+      }
+    };
+    loadProfile();
+  }, [dispatch]);
 
   // Location management handlers
   const handleCreateLocation = () => {
@@ -248,18 +263,20 @@ export default function Settings() {
               )}
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{user?.username}</Text>
-              <Text style={styles.profileRole}>
-                {isMaster ? 'Master User' : 'Employee'}
+              <Text style={styles.profileName}>
+                {profileLoaded ? user?.username : 'Loading...'}
               </Text>
-              {user?.name && (
+              <Text style={styles.profileRole}>
+                {profileLoaded ? (isMaster ? 'Master User' : 'Employee') : 'Loading...'}
+              </Text>
+              {profileLoaded && user?.name && (
                 <Text style={styles.profileSubtitle}>{user.name}</Text>
               )}
-              {user?.email && (
+              {profileLoaded && user?.email && (
                 <Text style={styles.profileSubtitle}>{user.email}</Text>
               )}
               <Text style={styles.profileDate}>
-                Member since {formatMemberSinceDetailed(user?.created_at)}
+                {profileLoaded ? `Member since ${formatMemberSinceDetailed(user?.created_at)}` : 'Loading...'}
               </Text>
             </View>
           </View>
@@ -611,7 +628,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     maxHeight: '85%',
     width: '100%',
-    maxWidth: 500,
+    maxWidth: 700,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
