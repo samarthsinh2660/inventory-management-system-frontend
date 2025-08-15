@@ -9,7 +9,8 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.boltexponativewind"
     },
     "web": {
       "bundler": "metro",
@@ -29,6 +30,9 @@
       "eas": {
         "projectId": "c26e68cd-2876-4b61-ab69-85f60ecd3b6b"
       }
+    },
+    "android": {
+      "package": "com.anonymous.boltexponativewind"
     }
   }
 }

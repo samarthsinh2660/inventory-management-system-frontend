@@ -1,0 +1,37 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // Explicit versions help avoid conflicts
+        classpath 'com.android.tools.build:gradle:7.3.1'
+        classpath 'com.facebook.react:react-native-gradle-plugin:0.71.8' // Match your RN version
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.21'   // Stable Kotlin version
+    }
+}
+
+// Resolve React Native Android directory from node_modules
+def reactNativeAndroidDir = new File(
+    providers.exec {
+        workingDir(rootDir)
+        commandLine("node", "--print", "require.resolve('react-native/package.json')")
+    }.standardOutput.asText.get().trim(),
+    "../android"
+)
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        // Local React Native maven repo from node_modules
+        maven { url(reactNativeAndroidDir) }
+        // JitPack for extra libraries
+        maven { url 'https://www.jitpack.io' }
+    }
+}
+
+apply plugin: "expo-root-project"
+apply plugin: "com.facebook.react.rootproject"
