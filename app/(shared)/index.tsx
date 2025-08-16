@@ -348,7 +348,7 @@ export default function Dashboard() {
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.quickActionCard}
-                onPress={() => router.push('../manage-suppliers')}
+                onPress={() => router.push('../supplier/manage-suppliers')}
               >
                 <View style={styles.quickActionIcon}>
                   <Package size={24} color="#059669" />

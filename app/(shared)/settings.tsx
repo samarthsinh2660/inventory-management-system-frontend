@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Settings as SettingsIcon, User, Users, LogOut, Shield, Bell, Info, ChevronRight, TriangleAlert as AlertTriangle, TestTube, FileText, MapPin, ArrowLeft } from 'lucide-react-native';
+import { Settings as SettingsIcon, User, Users, LogOut, Shield, Bell, Info, ChevronRight, TriangleAlert as AlertTriangle, FileText, MapPin, ArrowLeft } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAppDispatch } from '../../hooks/useAppDispatch';
 import { useAppSelector } from '../../hooks/useAppSelector';
@@ -15,17 +15,17 @@ import Modal from 'react-native-modal';
 import { UserRole } from '@/types/user';
 import { Notification } from '@/types/alerts';
 import { Location } from '@/types/product';
-import CrashTestComponent from '@/components/CrashTestComponent';
+import { extractFactoryName, displayUsername as displayUsernameUtil } from '@/utils/userUtils';
 
 export default function Settings() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const user = useAppSelector(state => state.auth.user);
+  const reduxFactoryDb = useAppSelector(state => state.auth.factoryDb);
   const { alerts, notifications } = useAppSelector(state => state.alerts);
   const locations = useAppSelector(state => state.locations.list);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
-  const [showCrashTesting, setShowCrashTesting] = useState(false);
   const [showLocationManagement, setShowLocationManagement] = useState(false);
   const [showCreateLocation, setShowCreateLocation] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
@@ -36,6 +36,28 @@ export default function Settings() {
   const isMaster = user?.role === UserRole.MASTER;
 
   const unresolvedAlertsCount = notifications.filter((notification: Notification) => !notification.is_read).length;
+
+  // Determine factory/database name: prefer username suffix (fast), no token decoding here
+  const factoryName = React.useMemo(() => {
+    const uname = user?.username || '';
+    const fromUsername = extractFactoryName(uname);
+    if (fromUsername) return fromUsername;
+    return '';
+  }, [user?.username]);
+
+  // If still missing, fallback to Redux factoryDb (derived during auth flows)
+  const effectiveFactoryName = React.useMemo(() => {
+    return factoryName || reduxFactoryDb || '';
+  }, [factoryName, reduxFactoryDb]);
+
+  // Build the primary username line to ensure visibility: username@factory when available
+  const usernameForDisplay = React.useMemo(() => {
+    const uname = user?.username || '';
+    if (effectiveFactoryName) {
+      return `${displayUsernameUtil(uname)}@${effectiveFactoryName}`;
+    }
+    return uname;
+  }, [user?.username, effectiveFactoryName]);
 
   // Fetch fresh profile data when Settings loads
   useEffect(() => {
@@ -264,7 +286,7 @@ export default function Settings() {
             </View>
             <View style={styles.profileInfo}>
               <Text style={styles.profileName}>
-                {profileLoaded ? user?.username : 'Loading...'}
+                {profileLoaded ? usernameForDisplay : 'Loading...'}
               </Text>
               <Text style={styles.profileRole}>
                 {profileLoaded ? (isMaster ? 'Master User' : 'Employee') : 'Loading...'}
@@ -274,6 +296,9 @@ export default function Settings() {
               )}
               {profileLoaded && user?.email && (
                 <Text style={styles.profileSubtitle}>{user.email}</Text>
+              )}
+              {profileLoaded && factoryName !== '' && (
+                <Text style={styles.profileSubtitle}>DB: {factoryName}</Text>
               )}
               <Text style={styles.profileDate}>
                 {profileLoaded ? `Member since ${formatMemberSinceDetailed(user?.created_at)}` : 'Loading...'}
@@ -339,6 +364,14 @@ export default function Settings() {
                 subtitle="Manage warehouse locations"
                 onPress={() => setShowLocationManagement(true)}
               />
+              <SettingsItem
+                icon={<SettingsIcon size={20} color="#6b7280" />}
+                title="Feature Customization"
+                subtitle="Enable or configure optional features"
+                onPress={() => {
+                  Alert.alert('Coming Soon', 'Feature customization will be available in a future update.');
+                }}
+              />
             </View>
           </View>
         </IfMaster>
@@ -354,20 +387,6 @@ export default function Settings() {
             />
           </View>
         </View>
-
-        {__DEV__ && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Developer Tools</Text>
-            <View style={styles.settingsGroup}>
-              <SettingsItem
-                icon={<TestTube size={20} color="#8b5cf6" />}
-                title="Crash Testing"
-                subtitle="Test error handling and crash prevention"
-                onPress={() => setShowCrashTesting(true)}
-              />
-            </View>
-          </View>
-        )}
 
         <View style={styles.section}>
           <View style={styles.settingsGroup}>
@@ -419,26 +438,6 @@ export default function Settings() {
           </View>
         </Modal>
       )}
-
-      {/* Crash Testing Modal */}
-      <Modal
-        isVisible={showCrashTesting}
-        onBackdropPress={() => setShowCrashTesting(false)}
-        onBackButtonPress={() => setShowCrashTesting(false)}
-        animationIn="slideInUp"
-        animationOut="slideOutDown"
-        style={styles.modalContainer}
-      >
-        <View style={styles.modalContent}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <Text style={{ fontSize: 20, fontWeight: '700', color: '#1f2937' }}>Crash Testing</Text>
-            <TouchableOpacity onPress={() => setShowCrashTesting(false)}>
-              <Text style={{ fontSize: 16, color: '#6b7280' }}>Close</Text>
-            </TouchableOpacity>
-          </View>
-          <CrashTestComponent onTestComplete={() => {}} />
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }

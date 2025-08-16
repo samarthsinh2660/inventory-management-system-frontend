@@ -2,8 +2,10 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_URL } from '../../utils/constant';
-import { User, AuthState,CreateUserData, UpdateProfileData, SignInData } from '@/types/user';
+import { User, AuthState,CreateUserData, UpdateProfileData, SignInData, TokenData } from '@/types/user';
 import { decodeTokenAndCreateUser,saveTokens,clearTokens,determineRole } from '@/utils/authHelper';
+import { jwtDecode } from 'jwt-decode';
+import { extractFactoryName } from '@/utils/userUtils';
 
 const initialState: AuthState = {
   accessToken: null,
@@ -11,6 +13,7 @@ const initialState: AuthState = {
   user: null,
   loading: false,
   error: null,
+  factoryDb: null,
 };
 
 
@@ -89,13 +92,24 @@ export const signin = createAsyncThunk(
       // Decode the token to get user info
       const userObject = decodeTokenAndCreateUser(token);
       
+      // Derive factory DB from token or entered username
+      let factoryDb = '';
+      try {
+        const decoded = jwtDecode<TokenData>(token);
+        factoryDb = decoded.factory_db || extractFactoryName(decoded.username || '') || '';
+      } catch {}
+      if (!factoryDb) {
+        factoryDb = extractFactoryName(credentials.username) || '';
+      }
+      
       // Save tokens to AsyncStorage
       await saveTokens(token, refreshTokenToSave);
       
       return { 
         user: userObject, 
         accessToken: token, 
-        refreshToken: refreshTokenToSave 
+        refreshToken: refreshTokenToSave,
+        factoryDb
       };
     } catch (error: any) {
       console.error('Signin error:', error.response?.data);
@@ -154,8 +168,15 @@ export const refreshToken = createAsyncThunk(
       
       // Save new tokens
       await saveTokens(token, refreshTokenToSave);
+
+      // Derive factory DB from new token
+      let factoryDb = '';
+      try {
+        const decoded = jwtDecode<TokenData>(token);
+        factoryDb = decoded.factory_db || extractFactoryName(decoded.username || '') || '';
+      } catch {}
       
-      return { accessToken: token, refreshToken: refreshTokenToSave };
+      return { accessToken: token, refreshToken: refreshTokenToSave, factoryDb };
     } catch (error: any) {
       // If refresh fails, logout user
       await clearTokens();
@@ -311,13 +332,19 @@ export const initAuth = createAsyncThunk(
         try {
           // Decode token to get user info
           const userObject = decodeTokenAndCreateUser(accessToken);
+          // Also derive factoryDb
+          let factoryDb = '';
+          try {
+            const decoded = jwtDecode<TokenData>(accessToken);
+            factoryDb = decoded.factory_db || extractFactoryName(decoded.username || '') || '';
+          } catch {}
           
           console.log('Auth initialized with tokens and user from token');
           
           dispatch(setTokens({ accessToken, refreshToken }));
           dispatch(setUser(userObject)); // Set user from decoded token
           
-          return { accessToken, refreshToken, user: userObject };
+          return { accessToken, refreshToken, user: userObject, factoryDb };
         } catch (decodeError) {
           console.error('Error decoding token during init:', decodeError);
           // If token is invalid, clear it
@@ -387,6 +414,7 @@ const authSlice = createSlice({
         state.refreshToken = action.payload.refreshToken;
         state.user = action.payload.user;
         state.error = null;
+        state.factoryDb = action.payload.factoryDb || null;
       })
       .addCase(signin.rejected, (state, action) => {
         state.loading = false;
@@ -401,6 +429,9 @@ const authSlice = createSlice({
         state.accessToken = action.payload.accessToken;
         state.refreshToken = action.payload.refreshToken;
         state.error = null;
+        if (action.payload.factoryDb !== undefined) {
+          state.factoryDb = action.payload.factoryDb || null;
+        }
       })
       .addCase(refreshToken.rejected, (state, action) => {
         state.accessToken = null;
@@ -469,6 +500,9 @@ const authSlice = createSlice({
         state.refreshToken = action.payload.refreshToken;
         if (action.payload.user) {
           state.user = action.payload.user;
+        }
+        if (action.payload.factoryDb !== undefined) {
+          state.factoryDb = action.payload.factoryDb || null;
         }
       })
       .addCase(initAuth.rejected, (state) => {

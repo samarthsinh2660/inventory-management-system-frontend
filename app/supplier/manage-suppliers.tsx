@@ -4,12 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Plus } from 'lucide-react-native';
 import { TextInput } from 'react-native-paper';
 import { useRouter } from 'expo-router';
-import { useAppDispatch } from '../hooks/useAppDispatch';
-import { useAppSelector } from '../hooks/useAppSelector';
-import { fetchPurchaseInfo, deletePurchaseInfo } from '../store/slices/purchaseInfoSlice';
-import { SuppliersList } from '../components/suppliers/SuppliersList';
-import { CreatePurchaseInfoModal } from '../components/modals/CreatePurchaseInfoModal';
-import { PurchaseInfo } from '../types/product';
+import { useAppDispatch } from '../../hooks/useAppDispatch';
+import { useAppSelector } from '../../hooks/useAppSelector';
+import { fetchPurchaseInfo, deletePurchaseInfo } from '../../store/slices/purchaseInfoSlice';
+import { SuppliersList } from '../../components/suppliers/SuppliersList';
+import { CreatePurchaseInfoModal } from '../../components/modals/CreatePurchaseInfoModal';
+import { PurchaseInfo } from '../../types/product';
 import Toast from 'react-native-toast-message';
 
 export default function ManageSuppliers() {

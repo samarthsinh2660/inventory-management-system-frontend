@@ -69,6 +69,7 @@ export interface AuthState {
     user: User | null;
     loading: boolean;
     error: string | null;
+    factoryDb?: string | null;
 }
 
 export interface IfMasterProps {
